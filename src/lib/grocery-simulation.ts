@@ -8,6 +8,9 @@ import {
   type Lot,
   type Product,
 } from "./grocery-catalog";
+import { eventStore } from "./rag/event-store";
+import { liveState } from "./rag/live-state";
+import { ruleEngine } from "./rag/rule-engine";
 export type { Product, Lot } from "./grocery-catalog";
 export type Site = "warehouse" | "store";
 export type JobKind = "inbound" | "transfer" | "sale";
@@ -180,7 +183,24 @@ export function simulationReducer(state: Simulation, action: SimAction): Simulat
     }
     return result;
   }
-  return reduceStep(state, action);
+  
+  const newState = reduceStep(state, action);
+  
+  // RAG Hooks: Sync with Event Store and Live State Projector
+  if (newState !== state) {
+    liveState.updateState(newState);
+    ruleEngine.scan(newState);
+    
+    // Check if new events were added (newest are at index 0 due to unshift)
+    const oldFirstId = state.events.length > 0 ? state.events[0].id : -1;
+    for (const ev of newState.events) {
+      if (ev.id === oldFirstId) break;
+      // Tránh việc add mảng ban đầu nếu id == 1
+      eventStore.append(ev);
+    }
+  }
+
+  return newState;
 }
 
 function reduceStep(state: Simulation, action: SimAction): Simulation {
