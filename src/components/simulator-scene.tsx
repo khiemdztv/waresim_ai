@@ -1,5 +1,5 @@
-import { useId, useMemo, type ReactNode } from "react";
-import type { Simulation, Site } from "@/lib/simulation";
+import { memo, useId, useMemo, type CSSProperties, type ReactNode } from "react";
+import { expiryInfo, stages, type Job, type Simulation, type Site } from "@/lib/simulation";
 
 import { departments } from "@/lib/grocery-catalog";
 
@@ -24,7 +24,38 @@ type Props = {
 };
 type Point = [number, number, number?];
 
-export function SimulatorScene({
+function sceneJobSignature(state: Simulation, site: Site) {
+  return state.jobs
+    .filter(
+      (job) =>
+        !job.done &&
+        (site === "warehouse"
+          ? job.kind === "inbound" || (job.kind === "transfer" && job.stage < 4)
+          : job.kind === "sale" || (job.kind === "transfer" && job.stage >= 4)),
+    )
+    .slice(0, 3)
+    .map((job) => `${job.id}:${job.stage}`)
+    .join("|");
+}
+
+function sameSceneProps(previous: Props, next: Props) {
+  return (
+    previous.site === next.site &&
+    previous.zoom === next.zoom &&
+    previous.flat === next.flat &&
+    previous.labels === next.labels &&
+    previous.paths === next.paths &&
+    previous.cameras === next.cameras &&
+    previous.selected === next.selected &&
+    previous.readOnly === next.readOnly &&
+    previous.onSelect === next.onSelect &&
+    previous.state.products === next.state.products &&
+    Math.floor(previous.state.time / 86400) === Math.floor(next.state.time / 86400) &&
+    sceneJobSignature(previous.state, previous.site) === sceneJobSignature(next.state, next.site)
+  );
+}
+
+export const SimulatorScene = memo(function SimulatorScene({
   site,
   state,
   zoom,
@@ -38,6 +69,7 @@ export function SimulatorScene({
 }: Props) {
   const uid = useId().replace(/:/g, "");
   const retail = site === "store";
+  const sceneTime = Math.floor(state.time / 86400) * 86400;
   const grouped = useMemo(
     () =>
       departments.map((g) => {
@@ -47,9 +79,27 @@ export function SimulatorScene({
           products,
           warehouse: products.reduce((n, p) => n + p.warehouse, 0),
           shelf: products.reduce((n, p) => n + p.shelf, 0),
+          storeAlerts: products.reduce(
+            (count, product) =>
+              count +
+              Number(product.shelf <= product.reorderPoint) +
+              Number(expiryInfo(product, sceneTime).nearUnits > 0),
+            0,
+          ),
+          warehouseAlerts: products.reduce(
+            (count, product) => count + Number(expiryInfo(product, sceneTime).nearUnits > 0),
+            0,
+          ),
         };
       }),
-    [state.products],
+    [sceneTime, state.products],
+  );
+  const liveJob = state.jobs.find(
+    (job) =>
+      !job.done &&
+      (retail
+        ? job.kind === "sale" || (job.kind === "transfer" && job.stage >= 4)
+        : job.kind === "inbound" || (job.kind === "transfer" && job.stage < 4)),
   );
   const project = ([x, y, z = 0]: Point) =>
     flat
@@ -172,40 +222,41 @@ export function SimulatorScene({
       )}
     </g>
   );
-  const tick = state.time - 30600;
   const person = (id: string, x: number, y: number, color: string, task: string, worker = true) => {
     const [px = 0, py = 0] = project([x, y]);
-    const stride = Math.sin(tick * 1.2 + x) * 2;
+    const stride = 0;
     return interactive(
       { id, label: id, kind: "worker", description: task },
       <g transform={`translate(${px} ${py})`}>
-        <ellipse cy={1} rx={10} ry={4} fill="#526b66" opacity=".13" />
-        <path
-          d={`M-3 -11 L${-4 - stride} -1 M3 -11 L${4 + stride} -1`}
-          stroke="#354d55"
-          strokeWidth={4}
-          strokeLinecap="round"
-        />
-        <path
-          d="M-7 -22 L-10 -13 M7 -22 L10 -15"
-          stroke="#d2aa86"
-          strokeWidth={3.5}
-          strokeLinecap="round"
-        />
-        <rect x={-6.5} y={-25} width={13} height={17} rx={4} fill={color} />
-        {worker && (
-          <path d="M-6 -16 H6 M-3 -24 V-10 M3 -24 V-10" stroke="#e5ef9b" strokeWidth={1.4} />
-        )}
-        <circle cy={-29} r={5} fill="#dfb896" />
-        <path d="M-5 -31 Q0 -40 5 -31 Z" fill={worker ? "#f1bc54" : "#4b4844"} />
-        {labels && (
-          <>
-            <rect x={-23} y={8} width={46} height={15} rx={4} fill="white" opacity=".95" />
-            <text y={18} textAnchor="middle" fontSize={8} fill="#536660" fontWeight={700}>
-              {id}
-            </text>
-          </>
-        )}
+        <g className="scene-person-motion" style={{ animationDelay: `${-(x % 10) / 10}s` }}>
+          <ellipse cy={1} rx={10} ry={4} fill="#526b66" opacity=".13" />
+          <path
+            d={`M-3 -11 L${-4 - stride} -1 M3 -11 L${4 + stride} -1`}
+            stroke="#354d55"
+            strokeWidth={4}
+            strokeLinecap="round"
+          />
+          <path
+            d="M-7 -22 L-10 -13 M7 -22 L10 -15"
+            stroke="#d2aa86"
+            strokeWidth={3.5}
+            strokeLinecap="round"
+          />
+          <rect x={-6.5} y={-25} width={13} height={17} rx={4} fill={color} />
+          {worker && (
+            <path d="M-6 -16 H6 M-3 -24 V-10 M3 -24 V-10" stroke="#e5ef9b" strokeWidth={1.4} />
+          )}
+          <circle cy={-29} r={5} fill="#dfb896" />
+          <path d="M-5 -31 Q0 -40 5 -31 Z" fill={worker ? "#f1bc54" : "#4b4844"} />
+          {labels && (
+            <>
+              <rect x={-23} y={8} width={46} height={15} rx={4} fill="white" opacity=".95" />
+              <text y={18} textAnchor="middle" fontSize={8} fill="#536660" fontWeight={700}>
+                {id}
+              </text>
+            </>
+          )}
+        </g>
       </g>,
     );
   };
@@ -217,7 +268,7 @@ export function SimulatorScene({
         kind: "equipment",
         description: retail ? "Xe đẩy mua sắm" : "Xe đẩy picking · vận chuyển hàng trong kho",
       },
-      <g>
+      <g className="scene-cart-motion">
         {box(x, y, 21, 18, 5, "#a1b4b4", "#718b89", "#647e7e", 6)}
         {parcel(x + 2, y + 2, 11)}
         {line(
@@ -239,7 +290,7 @@ export function SimulatorScene({
   const forklift = (id: string, x: number, y: number) =>
     interactive(
       { id, label: id, kind: "equipment", description: "Xe nâng · tiếp nhận và cất pallet vào kệ" },
-      <g>
+      <g className={`scene-forklift-motion ${id.endsWith("02") ? "reverse" : ""}`}>
         {box(x, y, 32, 22, 15, "#e8b45e", "#c7923c", "#aa7731", 5)}
         {[2, 25].map((n) => {
           const [px, py] = project([x + n, y + 23, 5]);
@@ -284,12 +335,13 @@ export function SimulatorScene({
     ];
     if (!category) return null;
     const p = category.products[0]!;
+    const alertCount = retail ? category.storeAlerts : category.warehouseAlerts;
     const id = `${retail ? "SHELF" : "RACK"}-${row}${i + 1}`;
     return interactive(
       {
         id,
         label: `${retail ? "Kệ cửa hàng" : "Kệ kho"} ${row}${i + 1}`,
-        description: `${category.group.emoji} ${category.group.name} · ${category.products.length} SKU · ${retail ? category.shelf : category.warehouse} đơn vị ${retail ? "trên kệ" : "trong kho"}. Sơ đồ hiển thị cụm hàng; sản phẩm đại diện: ${p.name}.`,
+        description: `${category.group.emoji} ${category.group.name} · ${category.products.length} SKU · ${retail ? category.shelf : category.warehouse} đơn vị ${retail ? "trên kệ" : "trong kho"} · ${alertCount} cảnh báo theo luật. Sơ đồ hiển thị cụm hàng; sản phẩm đại diện: ${p.name}.`,
         kind: "rack",
         sku: p.id,
       },
@@ -360,8 +412,28 @@ export function SimulatorScene({
         {label(`${row}${i + 1}`, x + w / 2, y + d + 1, h + 7, 9, "#ffffff", true)}
         {labels && label(category.group.short, x + w / 2, y + d + 20, 0, 7.5, "#526f60")}
         {labels && label(category.group.emoji, x + w / 2, y + d, h + 25, 17)}
-        {retail && category.products.some((p) => p.shelf <= p.reorderPoint) && (
-          <g>{label("!", x + w + 12, y + d, h + 8, 15, "#d49236", true)}</g>
+        {alertCount > 0 && (
+          <g className="scene-alert-badge">
+            {(() => {
+              const [cx = 0, cy = 0] = project([x + w + 8, y + 2, h + 23]);
+              return (
+                <>
+                  <circle className="scene-alert-ring" cx={cx} cy={cy} r={13} />
+                  <circle cx={cx} cy={cy} r={9} fill="#d94747" stroke="#fff" strokeWidth={2} />
+                  <text
+                    x={cx}
+                    y={cy + 3}
+                    textAnchor="middle"
+                    fontSize={7}
+                    fontWeight={800}
+                    fill="#fff"
+                  >
+                    {alertCount > 99 ? "99+" : alertCount}
+                  </text>
+                </>
+              );
+            })()}
+          </g>
         )}
       </g>,
     );
@@ -406,6 +478,81 @@ export function SimulatorScene({
         {label(name, x + w / 2, y + 77, 0, retail ? 8 : 9, "#5c776c", true)}
       </g>,
     );
+  const liveAction = (job: Job) => {
+    const action =
+      job.kind === "inbound"
+        ? {
+            start: [80, 408] as Point,
+            end: [400, 188] as Point,
+            label: job.stage < 2 ? "Kiểm tra lô nhập" : "Xe nâng đang cất hàng",
+            icon: "IN",
+          }
+        : job.kind === "transfer" && !retail
+          ? {
+              start: [260, 210] as Point,
+              end: [690, 405] as Point,
+              label: job.stage < 2 ? "Picking lô FEFO" : "Đưa hàng ra cửa hàng",
+              icon: "FEFO",
+            }
+          : job.kind === "transfer"
+            ? {
+                start: [65, 405] as Point,
+                end: [355, 220] as Point,
+                label: job.stage < 5 ? "Nhận xe bổ sung" : "Đang xếp hàng lên kệ",
+                icon: "KỆ",
+              }
+            : {
+                start: [250, 220] as Point,
+                end: [565, 412] as Point,
+                label: job.stage === 0 ? "Khách đang chọn hàng" : "Quét mã & thanh toán",
+                icon: "POS",
+              };
+    const [startX = 0, startY = 0] = project(action.start);
+    const [endX = 0, endY = 0] = project(action.end);
+    const style = {
+      "--scene-dx": `${endX - startX}px`,
+      "--scene-dy": `${endY - startY}px`,
+    } as CSSProperties;
+    const moving =
+      (job.kind === "inbound" && job.stage >= 2) ||
+      (job.kind === "transfer" && (job.stage === 3 || job.stage >= 5)) ||
+      (job.kind === "sale" && job.stage >= 1);
+
+    return (
+      <g className={`scene-live-action ${job.kind} stage-${job.stage}`} aria-hidden="true">
+        <line className="scene-action-route" x1={startX} y1={startY} x2={endX} y2={endY} />
+        <g transform={`translate(${startX} ${startY})`}>
+          <g
+            className={moving ? "scene-action-actor is-moving" : "scene-action-actor"}
+            style={style}
+          >
+            <ellipse cy={7} rx={17} ry={5} fill="#244f3c" opacity=".16" />
+            <rect x={-16} y={-17} width={32} height={22} rx={7} fill="#fff" stroke="#2d9b68" />
+            <rect x={-12} y={-13} width={24} height={13} rx={4} fill="#dff5e8" />
+            <text y={-4} textAnchor="middle" fontSize={7} fontWeight={800} fill="#267b53">
+              {action.icon}
+            </text>
+            <circle cx={-10} cy={7} r={4} fill="#385b4d" />
+            <circle cx={10} cy={7} r={4} fill="#385b4d" />
+            <g className="scene-action-box">
+              <rect x={-7} y={-28} width={14} height={11} rx={2} fill="#d2a56f" />
+              <path d="M-7 -23 H7 M0 -28 V-17" stroke="#f5dfc1" strokeWidth="1" />
+            </g>
+          </g>
+        </g>
+        <g className="scene-action-label" transform={`translate(${startX + 5} ${startY - 50})`}>
+          <rect x={-4} y={-15} width={142} height={31} rx={8} />
+          <circle cx={8} cy={0} r={4} />
+          <text x={18} y={-2}>
+            {action.label}
+          </text>
+          <text className="scene-action-detail" x={18} y={9}>
+            {job.id} · {job.sku} · {stages[job.kind][job.stage]}
+          </text>
+        </g>
+      </g>
+    );
+  };
   return (
     <svg
       viewBox="0 0 1040 660"
@@ -529,7 +676,7 @@ export function SimulatorScene({
                 {Array.from({ length: ri === 2 ? 2 : 3 }, (_, i) =>
                   person(
                     `KH-0${ri * 3 + i + 1}`,
-                    100 + i * 220 + Math.sin((tick + i * 12) / 10) * 35,
+                    100 + i * 220,
                     113 + ri * 110,
                     ["#8195b3", "#b6a0ad", "#bcaa80"][i]!,
                     ["Chọn hàng", "Xem sản phẩm", "Trả lại sản phẩm lên kệ"][i]!,
@@ -540,7 +687,7 @@ export function SimulatorScene({
               </>
             ) : ri === 0 ? (
               <>
-                {forklift("FORKLIFT-01", 80 + ((tick * 4) % 420), 167)}
+                {forklift("FORKLIFT-01", 80, 167)}
                 {person("NV-01", 310, 147, "#699886", "Lấy hàng tại kệ A3")}
                 {person("NV-02", 565, 145, "#699886", "Cất hàng vào kệ A6")}
                 {cart("CART-01", 335, 153)}
@@ -548,7 +695,7 @@ export function SimulatorScene({
               </>
             ) : (
               <>
-                {forklift("FORKLIFT-02", 560 - ((tick * 3) % 360), 322)}
+                {forklift("FORKLIFT-02", 390, 322)}
                 {person("NV-03", 167, 310, "#679384", "Quét mã sản phẩm · SCANNER-03")}
                 {person("NV-04", 420, 311, "#679384", "Kiểm đếm tồn kho")}
                 {cart("CART-03", 202, 308)}
@@ -700,12 +847,12 @@ export function SimulatorScene({
               570,
               366,
               145,
-              "#efe4d2",
+              "#f5dada",
               "Quarantine · DAMAGED-01, DAMAGED-02 · chờ kiểm tra",
               <>
                 {parcel(602, 391)}
                 {parcel(627, 391)}
-                {label("!", 665, 400, 10, 22, "#c38d38", true)}
+                <g className="scene-alert-badge">{label("!", 665, 400, 10, 22, "#d33f3f", true)}</g>
               </>,
             )}
             {person("NV-05", 115, 402, "#679384", "Tiếp nhận và quét mã hàng · SCANNER-05")}
@@ -732,7 +879,9 @@ export function SimulatorScene({
                       )}
                     </g>
                   ))}
-                  {parcel(179 + i * 156 + ((tick * 3) % 110), 445, 11)}
+                  <g className="scene-conveyor-parcel" style={{ animationDelay: `${-i * 1.5}s` }}>
+                    {parcel(179 + i * 156, 445, 11)}
+                  </g>
                 </g>,
               ),
             )}
@@ -750,7 +899,8 @@ export function SimulatorScene({
             "#789183",
             true,
           )}
+        {liveJob && liveAction(liveJob)}
       </g>
     </svg>
   );
-}
+}, sameSceneProps);

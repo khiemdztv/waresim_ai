@@ -8,13 +8,27 @@ import {
   type Lot,
   type Product,
 } from "./grocery-catalog";
-import { eventStore } from "./rag/event-store";
-import { liveState } from "./rag/live-state";
-import { ruleEngine } from "./rag/rule-engine";
 export type { Product, Lot } from "./grocery-catalog";
 export type Site = "warehouse" | "store";
 export type JobKind = "inbound" | "transfer" | "sale";
 export type Allocation = { lotId: string; quantity: number };
+export type CustomerType = "individual" | "business";
+export type CustomerOrderStatus = "pending" | "processing" | "completed" | "cancelled";
+export type CustomerOrder = {
+  id: string;
+  customerName: string;
+  customerType: CustomerType;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  source: "manual" | "auto";
+  status: CustomerOrderStatus;
+  createdAt: number;
+  completedAt?: number;
+  jobId: string;
+};
+export type OrderInput = Pick<CustomerOrder, "customerName" | "customerType" | "source">;
 export type Job = {
   id: string;
   kind: JobKind;
@@ -26,6 +40,7 @@ export type Job = {
   cancelled?: boolean;
   allocations: Allocation[];
   incomingExpiry?: string | null;
+  orderId?: string;
 };
 export type SimEvent = {
   id: number;
@@ -47,6 +62,8 @@ export type Simulation = {
   revenue: number;
   autoRetail: boolean;
   demandCursor: number;
+  orders: CustomerOrder[];
+  autoOrders: boolean;
   error: string;
 };
 export const stages: Record<JobKind, string[]> = {
@@ -63,14 +80,31 @@ export const stages: Record<JobKind, string[]> = {
   sale: ["Khách chọn hàng", "Quét mã tại POS", "Thanh toán", "Hoàn tất"],
 };
 export const stageDuration = 5;
+const individualCustomers = [
+  "Nguyễn Minh Anh",
+  "Trần Hoàng Nam",
+  "Lê Thu Hà",
+  "Phạm Gia Huy",
+  "Võ Ngọc Linh",
+  "Đặng Quốc Bảo",
+];
+const businessCustomers = [
+  "Công ty An Phú",
+  "Văn phòng Green Hub",
+  "Trường Mầm non Ánh Dương",
+  "Nhà hàng Bếp Việt",
+];
 export const clockLabel = (time: number) =>
   [Math.floor(time / 3600) % 24, Math.floor(time / 60) % 60, Math.floor(time) % 60]
     .map((n) => String(n).padStart(2, "0"))
     .join(":");
 export function initialSimulation(): Simulation {
+  const products = createCatalog();
+  const openingIndividual = products[7]!;
+  const openingBusiness = products[73]!;
   return {
     time: 30600,
-    products: createCatalog(),
+    products,
     jobs: [],
     events: [
       {
@@ -87,8 +121,39 @@ export function initialSimulation(): Simulation {
     received: 0,
     delivered: 0,
     revenue: 0,
-    autoRetail: false,
+    autoRetail: true,
     demandCursor: 0,
+    orders: [
+      {
+        id: "ORD-01040",
+        customerName: "Nguyễn Minh Anh",
+        customerType: "individual",
+        sku: openingIndividual.id,
+        quantity: 2,
+        unitPrice: openingIndividual.price,
+        total: openingIndividual.price * 2,
+        source: "auto",
+        status: "completed",
+        createdAt: 29700,
+        completedAt: 29715,
+        jobId: "POS-01039",
+      },
+      {
+        id: "ORD-01038",
+        customerName: "Công ty An Phú",
+        customerType: "business",
+        sku: openingBusiness.id,
+        quantity: 8,
+        unitPrice: openingBusiness.price,
+        total: openingBusiness.price * 8,
+        source: "manual",
+        status: "completed",
+        createdAt: 29100,
+        completedAt: 29115,
+        jobId: "POS-01037",
+      },
+    ],
+    autoOrders: true,
     error: "",
   };
 }
@@ -163,7 +228,15 @@ export type SimAction =
   | { type: "clear-error" }
   | { type: "advance-day" }
   | { type: "auto-retail"; enabled: boolean }
-  | { type: "create"; kind: JobKind; sku: string; quantity: number; expiryDate?: string | null }
+  | { type: "auto-orders"; enabled: boolean }
+  | {
+      type: "create";
+      kind: JobKind;
+      sku: string;
+      quantity: number;
+      expiryDate?: string | null;
+      order?: OrderInput;
+    }
   | { type: "damage"; sku: string; quantity: number };
 export function simulationReducer(state: Simulation, action: SimAction): Simulation {
   // Preserve the order of completions and expiry even when the clock runs at 60×.
@@ -183,36 +256,22 @@ export function simulationReducer(state: Simulation, action: SimAction): Simulat
     }
     return result;
   }
-  
-  const newState = reduceStep(state, action);
-  
-  // RAG Hooks: Sync with Event Store and Live State Projector
-  if (newState !== state) {
-    liveState.updateState(newState);
-    ruleEngine.scan(newState);
-    
-    // Check if new events were added (newest are at index 0 due to unshift)
-    const oldFirstId = state.events.length > 0 ? state.events[0].id : -1;
-    for (const ev of newState.events) {
-      if (ev.id === oldFirstId) break;
-      // Tránh việc add mảng ban đầu nếu id == 1
-      eventStore.append(ev);
-    }
-  }
 
-  return newState;
+  return reduceStep(state, action);
 }
 
 function reduceStep(state: Simulation, action: SimAction): Simulation {
   if (action.type === "reset") return initialSimulation();
   if (action.type === "clear-error") return { ...state, error: "" };
   if (action.type === "auto-retail") return { ...state, autoRetail: action.enabled };
+  if (action.type === "auto-orders") return { ...state, autoOrders: action.enabled };
   if (action.type === "advance-day" && state.jobs.some((j) => !j.done))
     return { ...state, error: "Hoàn tất các quy trình đang chạy trước khi chuyển ngày." };
   const next: Simulation = {
     ...state,
     products: [...state.products],
     jobs: state.jobs.map((j) => ({ ...j })),
+    orders: state.orders.map((order) => ({ ...order })),
     events: [...state.events],
     error: action.type === "tick" ? state.error : "",
   };
@@ -306,6 +365,7 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
             error: `Kệ ${p.displayBay} còn ${shelfSpace(state, p)} chỗ cho SKU này, đã tính các lệnh bổ sung đang chạy.`,
           };
         const id = `${kind === "sale" ? "POS" : "BS"}-${next.nextId++}`;
+        const orderId = kind === "sale" && action.order ? `ORD-${next.nextId++}` : undefined;
         next.jobs.push({
           id,
           kind,
@@ -315,10 +375,31 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
           elapsed: 0,
           done: false,
           allocations: allocation,
+          ...(orderId ? { orderId } : {}),
         });
+        if (orderId && action.order) {
+          next.orders.unshift({
+            id: orderId,
+            customerName: action.order.customerName,
+            customerType: action.order.customerType,
+            sku: p.id,
+            quantity: action.quantity,
+            unitPrice: p.price,
+            total: action.quantity * p.price,
+            source: action.order.source,
+            status: "pending",
+            createdAt: next.time,
+            jobId: id,
+          });
+          next.orders = next.orders.slice(0, 240);
+        }
         event(
-          kind === "sale" ? "Khách chọn sản phẩm" : "Giữ lô FEFO để bổ sung kệ",
-          `${id} · ${p.name} · ${action.quantity} ${p.unit} · ${allocation.map((a) => a.lotId).join(", ")}`,
+          kind === "sale"
+            ? orderId
+              ? "Tiếp nhận đơn đặt hàng"
+              : "Khách chọn sản phẩm"
+            : "Giữ lô FEFO để bổ sung kệ",
+          `${orderId ? `${orderId} · ` : ""}${id} · ${p.name} · ${action.quantity} ${p.unit} · ${allocation.map((a) => a.lotId).join(", ")}`,
           "blue",
           kind === "sale" ? "store" : "warehouse",
         );
@@ -365,13 +446,18 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
           }
         j.done = true;
         j.cancelled = true;
+        const order = j.orderId ? next.orders.find((item) => item.id === j.orderId) : undefined;
+        if (order) {
+          order.status = "cancelled";
+          order.completedAt = next.time;
+        }
         event("Hủy quy trình do lô hết hạn", j.id, "amber");
       }
     event("Tự động cách ly lô hết hạn", `${p.name} · ${removed} ${p.unit}`, "amber", "store");
   }
   for (const j of next.jobs) {
     if (j.done) continue;
-    const p = product(j.sku)!;
+    let p = changed.get(j.sku) ?? next.products.find((item) => item.id === j.sku)!;
     if (j.kind === "inbound" && j.incomingExpiry && j.incomingExpiry < today) {
       j.done = true;
       j.cancelled = true;
@@ -382,28 +468,37 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
     while (j.elapsed >= stageDuration && !j.done) {
       j.elapsed -= stageDuration;
       j.stage++;
-      for (const a of j.allocations) {
-        const l = p.lots.find((l) => l.id === a.lotId)!;
-        if (j.kind === "transfer") {
-          if (j.stage === 3) {
-            l.warehouse -= a.quantity;
-            l.transit += a.quantity;
+      const movesInventory =
+        (j.kind === "transfer" && [3, 4, 6].includes(j.stage)) ||
+        (j.kind === "sale" && j.stage === 3);
+      if (movesInventory) {
+        p = product(j.sku)!;
+        for (const a of j.allocations) {
+          const l = p.lots.find((lot) => lot.id === a.lotId)!;
+          if (j.kind === "transfer") {
+            if (j.stage === 3) {
+              l.warehouse -= a.quantity;
+              l.transit += a.quantity;
+            }
+            if (j.stage === 4) {
+              l.transit -= a.quantity;
+              l.backroom += a.quantity;
+            }
+            if (j.stage === 6) {
+              l.backroom -= a.quantity;
+              l.shelf += a.quantity;
+            }
           }
-          if (j.stage === 4) {
-            l.transit -= a.quantity;
-            l.backroom += a.quantity;
-          }
-          if (j.stage === 6) {
-            l.backroom -= a.quantity;
-            l.shelf += a.quantity;
-          }
+          if (j.kind === "sale") l.shelf -= a.quantity;
         }
-        if (j.kind === "sale" && j.stage === 3) l.shelf -= a.quantity;
       }
       j.done = j.stage === stages[j.kind].length - 1;
+      const order = j.orderId ? next.orders.find((item) => item.id === j.orderId) : undefined;
+      if (order) order.status = j.done ? "completed" : "processing";
       if (j.done) {
         j.elapsed = 0;
         if (j.kind === "inbound") {
+          p = product(j.sku)!;
           p.lots.push({
             id: `${p.id}-${j.id}`,
             receivedDate: today,
@@ -423,6 +518,7 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
         if (j.kind === "sale") {
           next.sold += j.quantity;
           next.revenue += j.quantity * p.price;
+          if (order) order.completedAt = next.time;
         }
         if (j.kind === "transfer") next.delivered += j.quantity;
       }
@@ -458,13 +554,25 @@ function reduceStep(state: Simulation, action: SimAction): Simulation {
     const index = (result.demandCursor * 73 + 17) % result.products.length;
     const p = result.products[index]!;
     result = { ...result, demandCursor: result.demandCursor + 1 };
-    const qty = Math.min(1 + (result.demandCursor % 3), p.shelf - reserved(result, p.id, "sale"));
+    const business = result.demandCursor % 8 === 0;
+    const requested = business ? 4 + (result.demandCursor % 7) : 1 + (result.demandCursor % 3);
+    const qty = Math.min(requested, p.shelf - reserved(result, p.id, "sale"));
     if (qty > 0) {
+      const order = result.autoOrders
+        ? {
+            customerName: business
+              ? businessCustomers[result.demandCursor % businessCustomers.length]!
+              : individualCustomers[result.demandCursor % individualCustomers.length]!,
+            customerType: business ? ("business" as const) : ("individual" as const),
+            source: "auto" as const,
+          }
+        : undefined;
       const candidate = simulationReducer(result, {
         type: "create",
         kind: "sale",
         sku: p.id,
         quantity: qty,
+        ...(order ? { order } : {}),
       });
       if (!candidate.error) result = { ...candidate, error: state.error };
     }

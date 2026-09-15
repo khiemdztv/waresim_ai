@@ -1,36 +1,15 @@
-import { Simulation } from "../grocery-simulation";
-import { liveState } from "./live-state";
+import { deriveOperationalAlerts, type OperationalAlert } from "../operational-alerts";
+import type { Simulation } from "../simulation";
 
-export interface SystemAlert {
-  id: string;
-  sku: string;
-  message: string;
-  level: "WARNING" | "CRITICAL";
-  timestamp: Date;
-}
-
+/**
+ * Adapter cho kiến trúc RAG: rule engine quyết định cảnh báo,
+ * AI chỉ đọc, giải thích và đề xuất.
+ */
 class RuleEngine {
-  private alerts: SystemAlert[] = [];
+  private alerts: OperationalAlert[] = [];
 
-  // Gọi hàm này sau mỗi vòng tick của simulator
   scan(state: Simulation) {
-    this.alerts = []; // Reset alerts for simple simulation, in real app keep track
-    
-    for (const product of state.products) {
-      // Rule 1: Hàng trên kệ < ngưỡng (Low Shelf Stock)
-      if (product.shelf < product.reorderPoint) {
-        this.alerts.push({
-          id: `ALERT-LOW-${product.id}`,
-          sku: product.id,
-          message: `Kệ hàng ${product.displayBay} đang có lượng tồn (${product.shelf}) thấp hơn ngưỡng (${product.reorderPoint}).`,
-          level: product.shelf === 0 ? "CRITICAL" : "WARNING",
-          timestamp: new Date()
-        });
-      }
-      
-      // Rule 2: Cảnh báo hàng sắp hết hạn có thể thêm ở đây...
-    }
-    
+    this.alerts = deriveOperationalAlerts(state);
     return this.alerts;
   }
 

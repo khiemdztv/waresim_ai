@@ -10,7 +10,22 @@ npm install
 npm run dev -- --host 127.0.0.1 --port 3000
 ```
 
-Mở http://127.0.0.1:3000. Dữ liệu trong bộ nhớ phiên; tải lại trang sẽ khởi tạo lại. Nút **Xuất dữ liệu** tải toàn bộ sản phẩm, lô, tồn, quy trình, nhật ký và doanh thu của phiên thành JSON.
+Mở http://127.0.0.1:3000. Dữ liệu trong bộ nhớ phiên; tải lại trang sẽ khởi tạo lại. Mô phỏng và khách mua tự động bắt đầu ngay, không cần bấm chạy. Nút **Xuất CSV** tải snapshot tồn theo từng lô để mở trực tiếp bằng Excel.
+
+Trợ lý dùng Groq qua server function. Khóa đặt trong `.env.local` với tên `GROQ_API_KEY`; không dùng tiền tố `VITE_` để tránh đưa khóa xuống bundle trình duyệt. Model mặc định là `openai/gpt-oss-20b`, có thể đổi bằng `GROQ_MODEL`. Xem mẫu tại `.env.example`. Nếu Groq tạm lỗi, trợ lý trả lại kết quả deterministic từ Live State/Rule Engine/Knowledge RAG.
+
+## Nâng cấp AI Talent Bảng C
+
+- **Chỉ số & đánh giá:** golden set local đo routing, grounding/faithfulness proxy, hallucination proxy và P95 retrieval; KPI OOS/Food Rescue/vòng quay lấy từ Live State.
+- **Dự báo nhẹ:** Dynamic Reorder Point dùng daily demand, lead time và safety stock 95%, chạy hoàn toàn trên trình duyệt.
+- **Food Rescue:** T−24h Flash Sale 25%, T−8h Giờ vàng 50%, T−2h chuyển tặng Food Bank. Quản lý phải duyệt; có Human Override.
+- **What‑If Digital Twin:** nhu cầu tăng, nhà cung cấp giao trễ hoặc sự cố chuỗi lạnh; kết quả không làm thay đổi tồn kho thật.
+- **Multi-Agent:** Inventory Guardian, Logistics Dispatcher và Store Manager Copilot cùng đọc một snapshot để tránh mâu thuẫn số liệu.
+- **RBAC & Audit:** chuyển vai trò ở thanh trên cùng; Staff/Manager/Auditor có quyền khác nhau. Quyết định được nối vào audit hash chain trong phiên.
+- **AI Guardrail:** chặn prompt override, lấy secret, vượt quyền, giao dịch nguy hiểm và chuỗi lệnh phá hoại trước khi gọi Groq.
+- **API Bridge:** `GET /api/v1/health`; contract ERP/POS/WMS tại `/api/v1/bridge`. POST khóa mặc định nếu thiếu `WARESIM_BRIDGE_TOKEN`.
+
+Xem bảng đối chiếu đầy đủ tại `UPGRADE_IMPLEMENTATION.md` và hướng dẫn free-tier tại `DEPLOYMENT.md`.
 
 Nhật ký giữ 100 sự kiện gần nhất, danh sách quy trình giữ toàn bộ lệnh đang chạy và khoảng 60 lệnh đã kết thúc. Bộ đếm hàng đã nhập, đã bán, đã bổ sung và doanh thu vẫn cộng dồn cả phiên; số quy trình hoàn tất trên giao diện tính theo danh sách còn giữ.
 
@@ -34,7 +49,7 @@ Một đơn vị tồn tương ứng **một quy cách bán**: chai, hộp, khay
 
 Nhóm hàng lấy cảm hứng từ [danh mục Bách Hóa Xanh](https://www.bachhoaxanh.com/). **Không sử dụng AI_TL hoặc dữ liệu nội bộ Bách Hóa Xanh.** Quy mô 3.000 SKU do người dùng chọn; số lượng, giá, nhãn, HSD, vòng đời và vùng nhiệt là giả định để vận hành mô hình, chưa hiệu chỉnh theo một cửa hàng thực tế cụ thể. Trường dailyDemand là tham số nhu cầu tham khảo của từng SKU, chưa dùng để dự báo doanh số.
 
-Bản JSON độc lập có sẵn ở `public/data/grocery-store-3000.json`, truy cập qua `/data/grocery-store-3000.json`. Tạo lại bằng `npm run data:generate` (script dùng hỗ trợ TypeScript trực tiếp của Node 22.18+; máy hiện tại Node 25).
+Bản CSV độc lập có sẵn ở `public/data/grocery-store-3000.csv`, truy cập qua `/data/grocery-store-3000.csv`. Tạo lại bằng `npm run data:generate` (script dùng hỗ trợ TypeScript trực tiếp của Node 22.18+; máy hiện tại Node 25).
 
 ## Thao tác
 
@@ -43,10 +58,14 @@ Bản JSON độc lập có sẵn ở `public/data/grocery-store-3000.json`, tru
 - **Nhập lô mới:** tìm sản phẩm, chọn lượng và HSD. Đồ dùng giấy không áp dụng HSD. Với hàng có HSD, hạn nhập phải từ ngày mô phỏng đến ngày mô phỏng + vòng đời giả định; NSX suy ra từ HSD và vòng đời.
 - **Bổ sung FEFO:** lấy lô còn hạn với ngày hết hạn gần nhất trước; cùng HSD ưu tiên ngày nhập cũ hơn. Hàng không HSD theo FIFO. Hàng chuyển qua kho → xe đẩy → chờ lên kệ → kệ bán, giữ nguyên mã lô.
 - **Bán tại POS:** giữ hàng theo lô trên kệ khi khách chọn, trừ khi thanh toán, cộng số đã bán và doanh thu giả lập.
+- **Đơn đặt hàng:** tiếp nhận khách cá nhân hoặc công ty/đơn vị, giữ tồn FEFO và liên kết mỗi đơn với tác vụ lấy hàng–quét mã–thanh toán. Trạng thái `chờ lấy hàng → đang xử lý → hoàn tất/hủy` cập nhật theo tác vụ; Quản lý mới có quyền tạo đơn.
 - **Cách ly hỏng:** tách hàng khả dụng ở kho vào nhóm hỏng, không lấy hàng đã giữ chỗ.
-- **Khách mua tự động:** một lượt lựa chọn SKU mỗi phút mô phỏng, 1–3 đơn vị, từ 7:00 đến trước 21:00. Chọn SKU theo chuỗi xác định; tự tạo lệnh bổ sung khi tồn thấp. Đây là mô hình đơn giản, chưa tái hiện giỏ nhiều mặt hàng, khuyến mãi, thuế, đổi trả hay tối ưu đặt hàng nhà cung cấp.
-- **Thời gian:** tạm dừng/chạy, 1×/2×/5×/60×. Nút **Qua ngày** chỉ khả dụng khi không còn quy trình đang chạy; chuyển 24 giờ, kiểm tra HSD rồi tạm dừng. Không sinh doanh số cho khoảng thời gian bỏ qua.
+- **Auto Order / khách mua tự động:** một lượt lựa chọn SKU mỗi phút mô phỏng, từ 7:00 đến trước 21:00. Đơn cá nhân lấy 1–3 đơn vị; định kỳ có đơn công ty/đơn vị 4–10 đơn vị. Quản lý có thể tạm dừng việc ghi nhận Auto Order; mô phỏng khách tại POS vẫn tiếp tục và tự tạo lệnh bổ sung khi tồn thấp. Đây là mô hình đơn giản, chưa tái hiện giỏ nhiều mặt hàng, khuyến mãi, thuế, đổi trả hay tối ưu đặt hàng nhà cung cấp.
+- **Thời gian:** luôn chạy, có tốc độ 1×/2×/5×/60×. Nút **Qua ngày** chỉ khả dụng khi không còn quy trình đang chạy; chuyển 24 giờ, kiểm tra HSD rồi tiếp tục chạy. Không sinh doanh số cho khoảng thời gian bỏ qua.
 - **Sơ đồ:** 13 cụm hàng khô và vùng lạnh trong kho; 21 cụm nhóm hàng ở sàn bán. Đây là sơ đồ tổng hợp theo nhóm, không phải 21 kệ vật lý chứa cả 3.000 SKU. Nhấp cụm để xem sản phẩm đại diện hoặc mở cả nhóm.
+- **Cảnh báo live:** rule engine tạo cảnh báo đỏ/cam cho hết kệ, tồn thấp, cận hạn và hàng hết hạn. Badge đỏ trên từng cụm và dải cảnh báo trong sơ đồ cập nhật theo state; AI chỉ giải thích cảnh báo đã được luật xác định.
+- **Trợ lý Groq + Hybrid RAG:** hỏi tự nhiên về chức năng phần mềm, mô hình dữ liệu, mã SKU/lô/đơn (`ORD-*`), khách hàng, Auto Order, kệ A1–C7, HSD, cảnh báo, tác vụ, lịch sử, doanh thu hoặc SOP nhập–bổ sung–bán–cách ly. Router truy xuất Live State/Event History/Knowledge RAG trước, sau đó Groq diễn giải trên context này. Giao diện giữ phần dữ liệu gốc trong mục **Dữ liệu RAG đã truy xuất** và ghi model, nguồn cùng thời điểm snapshot.
+- **Trung tâm cảnh báo:** bấm biểu tượng tam giác đỏ trên thanh trên cùng hoặc dải đỏ trên bản đồ để xem từng luật, nguyên nhân, ảnh hưởng, bằng chứng Live State và đề xuất Hybrid RAG. Từ đây có thể tạo lệnh xử lý, xem lô/HSD, mở danh sách liên quan hoặc chuyển câu hỏi sang trợ lý.
 
 ## Quy tắc tồn và hạn dùng
 
@@ -76,5 +95,9 @@ Kiểm thử quy mô/độ nhất quán dữ liệu, FEFO nhiều lô, đặt ch
 - `src/lib/simulation.ts`: điểm xuất API tương thích cho giao diện.
 - `src/components/operations-simulator.tsx`: màn hình và điều khiển.
 - `src/components/grocery-inventory.tsx`: bộ lọc, tồn và bảng lô.
+- `src/components/customer-orders.tsx`: đơn cá nhân/doanh nghiệp và điều khiển Auto Order.
 - `src/components/simulator-scene.tsx`: sơ đồ nhóm hàng.
-- `scripts/export-grocery-data.mjs`: tạo bản JSON độc lập.
+- `src/lib/operational-alerts.ts`: rule engine cảnh báo xác định.
+- `src/lib/rag/query-router.ts`: định tuyến câu hỏi Live State/Event History/SOP.
+- `src/components/chatbot.tsx`: giao diện trợ lý kho thời gian thực.
+- `scripts/export-grocery-data.mjs`: tạo bản CSV độc lập.

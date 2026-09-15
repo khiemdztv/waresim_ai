@@ -108,7 +108,7 @@ test("shelf capacity includes replenishments already on their way", () => {
 });
 
 test("POS consumes the earliest shelf lot only on payment, records revenue and rejects overselling", () => {
-  const original = initialSimulation(),
+  const original = { ...initialSimulation(), autoRetail: false },
     p = original.products[0]!;
   let s = create(original, "sale", 7);
   expect(s.jobs[0]!.allocations).toEqual([{ lotId: p.id + "-L01", quantity: 7 }]);
@@ -272,4 +272,59 @@ test("mixed workflows and automatic shoppers conserve stock and keep quantities 
   ).toBe(true);
   expect(new Set(s.events.map((e) => e.id)).size).toBe(s.events.length);
   expect(expiryInfo(s.products[0]!, s.time).next).toBe(dateAfter(BASE_DATE, 2));
+});
+
+test("business orders reserve FEFO stock and follow the linked payment workflow", () => {
+  const original = { ...initialSimulation(), autoRetail: false };
+  const product = original.products[0]!;
+  let state = simulationReducer(original, {
+    type: "create",
+    kind: "sale",
+    sku: product.id,
+    quantity: 6,
+    order: {
+      customerName: "Công ty Kiểm thử An Phú",
+      customerType: "business",
+      source: "manual",
+    },
+  });
+
+  const order = state.orders[0]!;
+  expect(order).toMatchObject({
+    customerName: "Công ty Kiểm thử An Phú",
+    customerType: "business",
+    sku: product.id,
+    quantity: 6,
+    status: "pending",
+    source: "manual",
+  });
+  expect(order.id).toMatch(/^ORD-/);
+  expect(state.jobs[0]!.orderId).toBe(order.id);
+  expect(state.jobs[0]!.allocations).toEqual([{ lotId: `${product.id}-L01`, quantity: 6 }]);
+  expect(reserved(state, product.id, "sale")).toBe(6);
+
+  state = tick(state, 5);
+  expect(state.orders[0]!.status).toBe("processing");
+  state = tick(state, 10);
+  expect(state.orders[0]!.status).toBe("completed");
+  expect(state.orders[0]!.completedAt).toBe(state.time);
+  expect(state.products[0]!.shelf).toBe(product.shelf - 6);
+  expect(state.revenue).toBe(6 * product.price);
+  expect(total(state)).toBe(total(original) - 6);
+});
+
+test("Auto Order creates customer orders on schedule and can be paused independently", () => {
+  let state = initialSimulation();
+  const seededOrders = state.orders.length;
+  state = tick(state, 60);
+  expect(state.demandCursor).toBe(1);
+  expect(state.orders).toHaveLength(seededOrders + 1);
+  expect(state.orders[0]).toMatchObject({ source: "auto", status: "pending" });
+
+  state = simulationReducer(state, { type: "auto-orders", enabled: false });
+  const pausedCount = state.orders.length;
+  state = tick(state, 60);
+  expect(state.autoOrders).toBe(false);
+  expect(state.demandCursor).toBe(2);
+  expect(state.orders).toHaveLength(pausedCount);
 });

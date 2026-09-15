@@ -1,178 +1,267 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, User } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { queryRouter } from '@/lib/rag/query-router';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Bot, Database, LoaderCircle, MessageCircle, Send, Sparkles, User, X } from "lucide-react";
+import { queryRouter, type WarehouseAnswer } from "@/lib/rag/query-router";
+import { generateGroqAnswer } from "@/lib/rag/groq-server";
+import type { Simulation } from "@/lib/simulation";
 
-interface Message {
-  id: string;
+type Message = {
+  id: number;
+  sender: "user" | "bot";
   text: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-}
+  answer?: WarehouseAnswer;
+};
 
-export function Chatbot() {
-  const [isOpen, setIsOpen] = useState(false);
+const suggestions = [
+  "Phần mềm có chức năng gì?",
+  "Có bao nhiêu SKU và lô?",
+  "SKU-0001 còn bao nhiêu?",
+  "Giải thích cảnh báo đỏ",
+  "Quy trình bổ sung kệ?",
+  "Dữ liệu realtime lấy từ đâu?",
+  "Food Rescue hoạt động thế nào?",
+];
+
+export type RagRequest = { id: number; question: string };
+
+export function Chatbot({
+  state,
+  request,
+  onGuardrailBlocked,
+}: {
+  state: Simulation;
+  request?: RagRequest | null;
+  onGuardrailBlocked?: (code: string, question: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      text: 'Xin chào! Tôi là AI Operations Agent (Temporal RAG). Bạn có thể hỏi tôi về lượng tồn kho hiện tại, lịch sử sự kiện, hoặc các luồng vận hành của hệ thống.',
-      sender: 'bot',
-      timestamp: new Date(),
-    }
+      id: 1,
+      sender: "bot",
+      text: "Mình là trợ lý Hybrid RAG của WareSim. Bạn có thể hỏi về chức năng phần mềm, dữ liệu realtime, SKU/lô/kệ/HSD, cảnh báo, lịch sử và mọi quy trình nhập–bổ sung–bán–cách ly.",
+    },
   ]);
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const nextId = useRef(2);
+  const endRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef(state);
+  const messagesRef = useRef(messages);
+  const busyRef = useRef(false);
+  const handledRequest = useRef<number | null>(null);
+  const guardrailCallbackRef = useRef(onGuardrailBlocked);
+  stateRef.current = state;
+  messagesRef.current = messages;
+  guardrailCallbackRef.current = onGuardrailBlocked;
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [messages, open]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim()) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputValue,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
+  const ask = useCallback(async (question: string) => {
+    const value = question.trim();
+    if (!value || busyRef.current) return;
+    busyRef.current = true;
+    setThinking(true);
+    setInput("");
+    const history = messagesRef.current
+      .filter((message) => message.id !== 1)
+      .slice(-8)
+      .map((message) => {
+        const content = message.answer?.aiText ?? message.text;
+        return {
+          role: message.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: content.length > 2400 ? `${content.slice(0, 2399)}…` : content,
+        };
+      });
+    const userMessage: Message = { id: nextId.current++, sender: "user", text: value };
+    setMessages((current) => {
+      const next = [...current, userMessage];
+      messagesRef.current = next;
+      return next;
+    });
 
     try {
-      // Call actual RAG logic
-      const responseText = await queryRouter.processQuery(userMessage.text);
-      
+      const grounded = await queryRouter.processQuery(value, stateRef.current);
+      if (grounded.blocked)
+        guardrailCallbackRef.current?.(grounded.guardrailCode ?? "UNKNOWN", value);
+      const generated = grounded.blocked
+        ? { ok: false as const, reason: "Yêu cầu bị guardrail chặn." }
+        : await generateGroqAnswer({
+            data: {
+              question: value,
+              groundedContext: grounded.text,
+              source: grounded.source,
+              snapshot: grounded.snapshot,
+              citations: grounded.citations ?? [],
+              history,
+            },
+          });
+      const answer: WarehouseAnswer = generated.ok
+        ? { ...grounded, aiText: generated.text, model: generated.model }
+        : { ...grounded, aiError: generated.reason };
       const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: responseText,
-        sender: 'bot',
-        timestamp: new Date(),
+        id: nextId.current++,
+        sender: "bot",
+        text: grounded.text,
+        answer,
       };
-      
-      setMessages((prev) => [...prev, botMessage]);
-    } catch (err) {
-      console.error(err);
+      setMessages((current) => {
+        const next = [...current, botMessage];
+        messagesRef.current = next;
+        return next;
+      });
+    } catch (error) {
+      console.error("Optional Groq layer failed; using deterministic RAG fallback", error);
+      const grounded = await queryRouter.processQuery(value, stateRef.current);
+      const botMessage: Message = {
+        id: nextId.current++,
+        sender: "bot",
+        text: grounded.text,
+        answer: { ...grounded, aiError: "Không gọi được lớp diễn giải Groq." },
+      };
+      setMessages((current) => {
+        const next = [...current, botMessage];
+        messagesRef.current = next;
+        return next;
+      });
     } finally {
-      setIsTyping(false);
+      busyRef.current = false;
+      setThinking(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!request || handledRequest.current === request.id) return;
+    handledRequest.current = request.id;
+    setOpen(true);
+    void ask(request.question);
+  }, [ask, request]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void ask(input);
   };
 
   return (
     <>
-      {/* Floating Action Button */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={cn(
-          "fixed bottom-6 right-6 p-4 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 transition-all duration-300 z-50",
-          isOpen ? "scale-0 opacity-0 pointer-events-none" : "scale-100 opacity-100"
-        )}
+        className={`warehouse-chat-launcher ${open ? "hidden" : ""}`}
+        onClick={() => setOpen(true)}
+        aria-label="Mở trợ lý kho thời gian thực"
       >
-        <Bot size={28} />
+        <MessageCircle size={23} />
+        <span>
+          <b>Hỏi Hybrid RAG</b>
+          <small>Phần mềm · dữ liệu · vận hành</small>
+        </span>
+        <i />
       </button>
-
-      {/* Chat Window */}
-      <div
-        className={cn(
-          "fixed bottom-6 right-6 w-[400px] h-[600px] bg-background/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-500 z-50 origin-bottom-right",
-          isOpen ? "scale-100 opacity-100" : "scale-50 opacity-0 pointer-events-none"
-        )}
+      <section
+        className={`warehouse-chat ${open ? "open" : ""}`}
+        aria-label="Trợ lý kho thời gian thực"
+        aria-hidden={!open}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-              <Bot size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm">Agentic Operations AI</h3>
-              <p className="text-xs text-emerald-400 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Connected to RAG
-              </p>
-            </div>
+        <header>
+          <span className="warehouse-chat-bot">
+            <Bot size={20} />
+          </span>
+          <div>
+            <b>WareSim Operations Agent</b>
+            <small>
+              <i /> GROQ + HYBRID RAG · đang đồng bộ
+            </small>
           </div>
-          <button 
-            onClick={() => setIsOpen(false)}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
-          >
-            <X size={20} />
+          <button onClick={() => setOpen(false)} aria-label="Đóng trợ lý">
+            <X size={18} />
           </button>
+        </header>
+        <div className="warehouse-chat-freshness">
+          <Database size={13} /> Trạng thái mới nhất ·{" "}
+          {state.products.length.toLocaleString("vi-VN")} SKU
         </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex max-w-[85%] animate-in slide-in-from-bottom-2",
-                msg.sender === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
-              )}
-            >
-              <div 
-                className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-auto shadow-md",
-                  msg.sender === 'user' ? "bg-white/10 ml-2" : "bg-blue-600/20 text-blue-400 mr-2 border border-blue-500/30"
+        <div className="warehouse-chat-messages" aria-live="polite">
+          {messages.map((message) => (
+            <article key={message.id} className={message.sender}>
+              <span>{message.sender === "bot" ? <Bot size={14} /> : <User size={14} />}</span>
+              <div>
+                <p>{message.answer?.aiText ?? message.text}</p>
+                {message.answer && (
+                  <>
+                    <small>
+                      {message.answer.model
+                        ? `GROQ ${message.answer.model} · `
+                        : message.answer.aiError
+                          ? "LOCAL FALLBACK · "
+                          : ""}
+                      {message.answer.source} · snapshot {message.answer.snapshot}
+                    </small>
+                    {message.answer.aiError && (
+                      <small className="warehouse-chat-ai-error">{message.answer.aiError}</small>
+                    )}
+                    {message.answer.aiText && (
+                      <details className="warehouse-chat-grounding">
+                        <summary>Dữ liệu RAG đã truy xuất</summary>
+                        <p>{message.text}</p>
+                      </details>
+                    )}
+                    {message.answer.citations && (
+                      <div className="warehouse-chat-citations">
+                        {message.answer.citations.map((citation) => (
+                          <span key={citation}>
+                            <Sparkles size={9} /> {citation}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
-              >
-                {msg.sender === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
-              <div
-                className={cn(
-                  "p-3 rounded-2xl text-sm leading-relaxed",
-                  msg.sender === 'user' 
-                    ? "bg-blue-600 text-white rounded-br-sm" 
-                    : "bg-white/5 border border-white/10 rounded-bl-sm"
-                )}
-              >
-                {msg.text}
-              </div>
-            </div>
+            </article>
           ))}
-          {isTyping && (
-            <div className="flex max-w-[85%] mr-auto items-end animate-in fade-in">
-               <div className="w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 mr-2 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
-                  <Bot size={16} />
+          {thinking && (
+            <article className="bot warehouse-chat-thinking">
+              <span>
+                <Bot size={14} />
+              </span>
+              <div>
+                <p>
+                  <LoaderCircle size={14} /> Groq đang phân tích context realtime…
+                </p>
               </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 rounded-bl-sm flex gap-1.5 items-center">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-              </div>
-            </div>
+            </article>
           )}
-          <div ref={messagesEndRef} />
+          <div ref={endRef} />
         </div>
-
-        {/* Input */}
-        <div className="p-4 border-t border-white/10 bg-black/20">
-          <form onSubmit={handleSendMessage} className="relative flex items-center">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Hỏi về hệ thống (VD: Kệ A còn bao nhiêu?)"
-              className="w-full bg-white/5 border border-white/10 rounded-full py-3 pl-4 pr-12 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all text-sm placeholder:text-gray-500"
-            />
-            <button 
-              type="submit"
-              disabled={!inputValue.trim()}
-              className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-500 disabled:bg-white/10 disabled:text-gray-500 text-white rounded-full transition-colors"
-            >
-              <Send size={16} className={cn("translate-x-[-1px]", inputValue.trim() ? "translate-x-0" : "")} />
-            </button>
-          </form>
-        </div>
-      </div>
+        {messages.length < 4 && (
+          <div className="warehouse-chat-suggestions">
+            {suggestions.map((suggestion) => (
+              <button key={suggestion} onClick={() => void ask(suggestion)} disabled={thinking}>
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+        <form onSubmit={submit}>
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            disabled={thinking}
+            placeholder="Hỏi về phần mềm, dữ liệu hoặc vận hành…"
+            aria-label="Câu hỏi cho trợ lý kho"
+          />
+          <button type="submit" disabled={!input.trim() || thinking} aria-label="Gửi câu hỏi">
+            {thinking ? (
+              <LoaderCircle className="warehouse-chat-spinner" size={17} />
+            ) : (
+              <Send size={17} />
+            )}
+          </button>
+        </form>
+        <footer>
+          Groq diễn giải · Live State giữ số liệu · Event History giữ lịch sử · Knowledge RAG giữ
+          SOP.
+        </footer>
+      </section>
     </>
   );
 }

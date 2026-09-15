@@ -4,7 +4,7 @@ Tài liệu này chuyển đề xuất trong `../rag.txt` thành các pha có th
 
 ## Pha 0 — Simulator làm nguồn sự kiện
 
-Trạng thái: đang triển khai trong frontend mẫu.
+Trạng thái: đã có bản frontend mẫu gồm rule alert, trung tâm phân tích cảnh báo, chatbot Hybrid RAG đọc Live State/Event History/kho tri thức phần mềm–dữ liệu–SOP và CSV snapshot. Event Store bền vững và backend realtime nằm ở các pha tiếp theo.
 
 - Chuẩn hóa event append-only: `RECEIVE`, `PICK`, `MOVE`, `RESTOCK`, `TAKE`, `SALE`, `DAMAGE`, `EXPIRE`, `TASK_CANCELLED`.
 - Mỗi event cần `event_id`, `occurred_at`, `simulation_time`, `store_id`, `actor_id`, `sku`, `lot_id`, `from_location`, `to_location`, `quantity`, `correlation_id`.

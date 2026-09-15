@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowDownLeft,
@@ -23,8 +23,6 @@ import {
   Menu,
   Minus,
   PackageCheck,
-  Pause,
-  Play,
   Plus,
   RotateCcw,
   Route as RouteIcon,
@@ -39,6 +37,9 @@ import {
   Warehouse,
   X,
   AlertTriangle,
+  BarChart3,
+  FileCheck2,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -52,6 +53,7 @@ import {
   stageDuration,
   stages,
   type JobKind,
+  type CustomerType,
   type Simulation,
   type Site,
 } from "@/lib/simulation";
@@ -62,16 +64,41 @@ import {
 } from "@/components/grocery-inventory";
 import { dateAfter, simDate, storageLabels } from "@/lib/grocery-catalog";
 import { expiryInfo, shelfSpace } from "@/lib/simulation";
+import { deriveOperationalAlerts } from "@/lib/operational-alerts";
+import { Chatbot, type RagRequest } from "@/components/chatbot";
+import { AlertCenter } from "@/components/alert-center";
+import { AuditPanel } from "@/components/audit-panel";
+import { FoodRescueCenter } from "@/components/food-rescue-center";
+import { MetricsDashboard } from "@/components/metrics-dashboard";
+import { ScenarioLab } from "@/components/scenario-lab";
+import { CustomerOrders } from "@/components/customer-orders";
+import { appendAuditEntry, type AuditEntry } from "@/lib/audit-log";
+import type { RescueDecision, RescuePlan } from "@/lib/food-rescue";
+import type { ScenarioResult } from "@/lib/scenario-simulator";
+import { can, roleLabels, type UserRole } from "@/lib/security";
 import "@/simulator.css";
 
-type Page = "simulation" | "overview" | "inventory" | "activity" | "cameras";
+type Page =
+  | "simulation"
+  | "overview"
+  | "inventory"
+  | "orders"
+  | "activity"
+  | "cameras"
+  | "metrics"
+  | "scenarios"
+  | "audit";
 type Command = JobKind | "damage";
 const navigation: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
   { id: "simulation", label: "Mô phỏng không gian", icon: Layers3 },
   { id: "inventory", label: "Quản lý tồn kho", icon: Boxes },
+  { id: "orders", label: "Đơn đặt hàng", icon: ShoppingBag },
   { id: "activity", label: "Luồng hoạt động", icon: RouteIcon },
   { id: "cameras", label: "Hệ thống camera", icon: Camera },
+  { id: "metrics", label: "Chỉ số & đánh giá", icon: BarChart3 },
+  { id: "scenarios", label: "Kịch bản What‑If", icon: FlaskConical },
+  { id: "audit", label: "Nhật ký kiểm toán", icon: FileCheck2 },
 ];
 const commandTitles: Record<Command, string> = {
   inbound: "Nhập hàng vào kho",
@@ -80,6 +107,7 @@ const commandTitles: Record<Command, string> = {
   damage: "Đưa hàng vào khu cách ly",
 };
 const fmt = (n: number) => n.toLocaleString("vi-VN");
+const csvCell = (value: string | number | null) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 function IconButton({
   icon: Icon,
   label,
@@ -118,7 +146,6 @@ function Tag({ children, tone = "green" }: { children: React.ReactNode; tone?: s
 export function OperationsSimulator() {
   const [hydrated, setHydrated] = useState(false);
   const [state, dispatch] = useReducer(simulationReducer, undefined, initialSimulation);
-  const [running, setRunning] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [site, setSite] = useState<Site>("warehouse");
   const [page, setPage] = useState<Page>("simulation");
@@ -147,18 +174,48 @@ export function OperationsSimulator() {
   const [mobileNav, setMobileNav] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alertFocusId, setAlertFocusId] = useState<string | null>(null);
+  const [ragRequest, setRagRequest] = useState<RagRequest | null>(null);
+  const [role, setRole] = useState<UserRole>("manager");
+  const [rescueOpen, setRescueOpen] = useState(false);
+  const [rescueDecisions, setRescueDecisions] = useState<readonly RescueDecision[]>([]);
+  const [auditEntries, setAuditEntries] = useState<readonly AuditEntry[]>([]);
   const [notice, setNotice] = useState("");
   const [fullMap, setFullMap] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const active = state.jobs.filter((j) => !j.done);
-  const warehouseTotal = state.products.reduce((n, p) => n + p.warehouse, 0);
-  const storeTotal = state.products.reduce((n, p) => n + p.shelf + p.backroom, 0);
-  const lowStock = state.products.filter((p) => p.shelf <= p.reorderPoint);
-  const damaged = state.products.reduce((n, p) => n + p.damaged, 0);
-  const alerts =
-    lowStock.length +
-    state.products.filter((p) => expiryInfo(p, state.time).nearUnits > 0).length +
-    (damaged > 0 ? 1 : 0);
+  const inventoryStats = useMemo(
+    () =>
+      state.products.reduce(
+        (stats, product) => ({
+          warehouse: stats.warehouse + product.warehouse,
+          store: stats.store + product.shelf + product.backroom,
+          lowStock: stats.lowStock + Number(product.shelf <= product.reorderPoint),
+          damaged: stats.damaged + product.damaged,
+        }),
+        { warehouse: 0, store: 0, lowStock: 0, damaged: 0 },
+      ),
+    [state.products],
+  );
+  const warehouseTotal = inventoryStats.warehouse;
+  const storeTotal = inventoryStats.store;
+  const damaged = inventoryStats.damaged;
+  const simulationDay = Math.floor(state.time / 86400);
+  const operationalAlerts = useMemo(
+    () =>
+      deriveOperationalAlerts({
+        products: state.products,
+        time: simulationDay * 86400,
+      }),
+    [simulationDay, state.products],
+  );
+  const alerts = operationalAlerts.length;
+  const criticalAlerts = operationalAlerts.filter((alert) => alert.severity === "critical");
+  const openAlertCenter = (id?: string) => {
+    setAlertFocusId(id ?? null);
+    setAlertsOpen(true);
+  };
   const siteJobs = active.filter((j) =>
     site === "warehouse"
       ? j.kind === "inbound" || (j.kind === "transfer" && j.stage < 4)
@@ -169,11 +226,41 @@ export function OperationsSimulator() {
     setSelected(null);
     setZoom(1);
   };
+  const recordAudit = (
+    action: string,
+    target: string,
+    decision: AuditEntry["decision"],
+    detail: string,
+    actorRole: UserRole = role,
+  ) =>
+    setAuditEntries((entries) =>
+      appendAuditEntry(entries, {
+        simulationTime: state.time,
+        actorRole,
+        action,
+        target,
+        decision,
+        detail,
+      }),
+    );
   const go = (value: Page) => {
+    if (value === "audit" && !can(role, "audit:read")) {
+      setNotice("RBAC: Chỉ Quản lý hoặc Kiểm toán viên được xem audit trail.");
+      recordAudit("ACCESS_AUDIT", "audit-trail", "BLOCKED", "Vai trò không có audit:read");
+      return;
+    }
     setPage(value);
     setMobileNav(false);
   };
   const openCommand = (kind: Command, product = "SKU-0001") => {
+    const allowed = can(role, "operation:create") && (role === "manager" || kind === "transfer");
+    if (!allowed) {
+      setNotice(
+        `RBAC: ${roleLabels[role].name} không được tạo tác vụ ${commandTitles[kind].toLowerCase()}.`,
+      );
+      recordAudit("CREATE_OPERATION", `${kind}:${product}`, "BLOCKED", "RBAC từ chối thao tác");
+      return;
+    }
     dispatch({ type: "clear-error" });
     setSku(product);
     const p = state.products.find((p) => p.id === product)!;
@@ -202,13 +289,20 @@ export function OperationsSimulator() {
     setHydrated(true);
   }, []);
   useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(
-      () => dispatch({ type: "tick", seconds: Math.max(1, speed / 5) }),
-      1000 / Math.min(speed, 5),
-    );
+    let previous = performance.now();
+    let remainder = 0;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      remainder += ((now - previous) / 1000) * speed;
+      previous = now;
+      const seconds = Math.floor(remainder);
+      if (seconds > 0) {
+        remainder -= seconds;
+        dispatch({ type: "tick", seconds: Math.min(seconds, 86400) });
+      }
+    }, 250);
     return () => window.clearInterval(timer);
-  }, [running, speed]);
+  }, [speed]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 4500);
@@ -244,66 +338,218 @@ export function OperationsSimulator() {
     const result = simulationReducer(state, action);
     dispatch(action);
     if (!result.error) {
+      recordAudit(
+        command === "damage" ? "QUARANTINE_STOCK" : "CREATE_OPERATION",
+        `${command}:${sku}`,
+        command === "damage" ? "APPROVED" : "CREATED",
+        `${quantity} đơn vị · human initiated`,
+      );
       setCommand(null);
       setNotice(
         command === "damage"
           ? "Đã chuyển sản phẩm vào khu cách ly."
-          : `Đã tạo ${command === "inbound" ? "lô nhập" : command === "transfer" ? "lệnh chuyển hàng" : "lượt mua hàng"}. ${running ? "Quy trình đang được mô phỏng." : "Nhấn Chạy để bắt đầu xử lý."}`,
+          : `Đã tạo ${command === "inbound" ? "lô nhập" : command === "transfer" ? "lệnh chuyển hàng" : "lượt mua hàng"}. Quy trình đang được mô phỏng tự động.`,
       );
     }
   };
-  const exportData = () => {
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      simulatedTime: clockLabel(state.time),
-      simulatedDate: simDate(state.time),
-      assumptions:
-        "3.000 SKU tổng hợp cho cùng một cửa hàng; tên nhãn, giá, HSD và số lượng là giả định mô phỏng, không phải dữ liệu nội bộ Bách Hóa Xanh.",
-      products: state.products,
-      jobs: state.jobs,
-      events: state.events,
-      totals: {
-        warehouse: warehouseTotal,
-        store: storeTotal,
-        inTransit: inTransit(state),
-        sold: state.sold,
-        revenue: state.revenue,
-        damaged,
+  const decideRescue = (plan: RescuePlan, status: RescueDecision["status"]) => {
+    if (!can(role, "rescue:approve")) {
+      setNotice("RBAC: Chỉ Quản lý được duyệt kế hoạch Food Rescue.");
+      recordAudit("FOOD_RESCUE", plan.id, "BLOCKED", "Vai trò không có rescue:approve");
+      return;
+    }
+    if (rescueDecisions.some((decision) => decision.planId === plan.id)) return;
+    const decision: RescueDecision = {
+      planId: plan.id,
+      sku: plan.sku,
+      lotId: plan.lotId,
+      status,
+      units: status === "APPROVED" ? plan.projectedRescuedUnits : 0,
+      decidedAt: state.time,
+      note:
+        status === "APPROVED"
+          ? `${plan.channel} · ${plan.discountPercent === 100 ? "chuyển tặng" : `giảm ${plan.discountPercent}%`}`
+          : "Human Override · giữ nguyên kế hoạch vận hành",
+    };
+    setRescueDecisions((items) => [...items, decision]);
+    recordAudit(
+      "FOOD_RESCUE",
+      `${plan.sku}:${plan.lotId}`,
+      status,
+      `${decision.units} đơn vị · ${decision.note}`,
+    );
+    setNotice(
+      status === "APPROVED"
+        ? "Đã duyệt Food Rescue và ghi audit trail."
+        : "Đã ghi nhận Human Override.",
+    );
+  };
+  const auditScenario = (result: ScenarioResult) => {
+    recordAudit(
+      "RUN_WHAT_IF",
+      result.config.kind,
+      "VIEWED",
+      `${result.affectedSkus} SKU ảnh hưởng · sandbox không thay đổi Live State`,
+    );
+  };
+  const createCustomerOrder = (order: {
+    customerName: string;
+    customerType: CustomerType;
+    sku: string;
+    quantity: number;
+  }) => {
+    if (role !== "manager" || !can(role, "operation:create")) {
+      recordAudit("CREATE_CUSTOMER_ORDER", order.sku, "BLOCKED", "RBAC từ chối thao tác");
+      return "Chỉ vai trò Quản lý được tạo đơn đặt hàng.";
+    }
+    if (order.customerName.length < 2 || order.customerName.length > 80)
+      return "Tên khách hàng phải có từ 2 đến 80 ký tự.";
+    const action = {
+      type: "create" as const,
+      kind: "sale" as const,
+      sku: order.sku,
+      quantity: order.quantity,
+      order: {
+        customerName: order.customerName,
+        customerType: order.customerType,
+        source: "manual" as const,
       },
     };
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }),
+    const result = simulationReducer(state, action);
+    if (result.error) return result.error;
+    dispatch(action);
+    recordAudit(
+      "CREATE_CUSTOMER_ORDER",
+      `${order.customerType}:${order.sku}`,
+      "CREATED",
+      `${order.customerName} · ${order.quantity} đơn vị · FEFO reserved`,
     );
+    setNotice("Đã nhận đơn và tạo tác vụ lấy hàng FEFO.");
+    return null;
+  };
+  const toggleAutoOrders = (enabled: boolean) => {
+    if (role !== "manager") {
+      recordAudit("TOGGLE_AUTO_ORDER", "auto-orders", "BLOCKED", "RBAC từ chối thao tác");
+      return;
+    }
+    dispatch({ type: "auto-orders", enabled });
+    recordAudit(
+      "TOGGLE_AUTO_ORDER",
+      "auto-orders",
+      "APPROVED",
+      enabled ? "Bật tự nhận đơn mỗi phút" : "Tạm dừng tự nhận đơn",
+    );
+    setNotice(enabled ? "Auto Order đã bật." : "Auto Order đã tạm dừng.");
+  };
+  const exportData = () => {
+    const headers = [
+      "ngay_mo_phong",
+      "gio_mo_phong",
+      "sku",
+      "ten_san_pham",
+      "nhan_hang",
+      "nhom_hang",
+      "quy_cach",
+      "don_vi",
+      "gia_vnd",
+      "vi_tri_ke",
+      "vi_tri_kho",
+      "bao_quan",
+      "ma_lo",
+      "ngay_san_xuat",
+      "ngay_nhap",
+      "han_su_dung",
+      "kho_du_tru",
+      "ke_ban",
+      "cho_len_ke",
+      "dang_tren_xe",
+      "cach_ly_hong",
+      "cach_ly_het_han",
+      "giu_cho_bo_sung_lo",
+      "giu_cho_ban_lo",
+      "da_ban_trong_phien",
+      "doanh_thu_phien_vnd",
+    ];
+    const rows = state.products.flatMap((product) =>
+      product.lots.map((lot) => [
+        simDate(state.time),
+        clockLabel(state.time),
+        product.id,
+        product.name,
+        product.brand,
+        product.category,
+        product.pack,
+        product.unit,
+        product.price,
+        product.displayBay,
+        product.warehouseBay,
+        storageLabels[product.storage],
+        lot.id,
+        lot.manufacturedDate,
+        lot.receivedDate,
+        lot.expiryDate,
+        lot.warehouse,
+        lot.shelf,
+        lot.backroom,
+        lot.transit,
+        lot.damaged,
+        lot.expired,
+        state.jobs
+          .filter(
+            (job) =>
+              job.sku === product.id && job.kind === "transfer" && !job.done && job.stage < 3,
+          )
+          .flatMap((job) => job.allocations)
+          .filter((allocation) => allocation.lotId === lot.id)
+          .reduce((total, allocation) => total + allocation.quantity, 0),
+        state.jobs
+          .filter((job) => job.sku === product.id && job.kind === "sale" && !job.done)
+          .flatMap((job) => job.allocations)
+          .filter((allocation) => allocation.lotId === lot.id)
+          .reduce((total, allocation) => total + allocation.quantity, 0),
+        state.sold,
+        state.revenue,
+      ]),
+    );
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "waresim-simulation.json";
+    link.download = `waresim-${simDate(state.time)}-${clockLabel(state.time).replaceAll(":", "-")}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice("Đã xuất dữ liệu mô phỏng dạng JSON.");
+    setNotice(`Đã xuất CSV gồm ${fmt(rows.length)} dòng lô hàng.`);
   };
   const currentProduct = state.products.find((p) => p.id === selected?.sku);
   const commandProduct = state.products.find((p) => p.id === sku);
-  const searchTerm = productSearch
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase();
-  const commandProducts = state.products
-    .filter(
-      (p) =>
-        p.id === sku ||
-        `${p.id} ${p.name} ${p.brand}`
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/đ/gi, "d")
-          .toLowerCase()
-          .includes(searchTerm),
-    )
-    .slice(0, 80);
-  if (commandProduct && !commandProducts.includes(commandProduct))
-    commandProducts.unshift(commandProduct);
+  const commandProducts = useMemo(() => {
+    if (!command) return [];
+    const searchTerm = productSearch
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/gi, "d")
+      .toLowerCase();
+    const products = state.products
+      .filter(
+        (product) =>
+          product.id === sku ||
+          `${product.id} ${product.name} ${product.brand}`
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/gi, "d")
+            .toLowerCase()
+            .includes(searchTerm),
+      )
+      .slice(0, 80);
+    const current = state.products.find((product) => product.id === sku);
+    if (current && !products.includes(current)) products.unshift(current);
+    return products;
+  }, [command, productSearch, sku, state.products]);
   const completed = state.jobs.filter((j) => j.done && !j.cancelled).length;
   const selectedJob = siteJobs[0];
+  const selectedJobProduct = selectedJob
+    ? state.products.find((product) => product.id === selectedJob.sku)
+    : undefined;
   const pipelineStep = !selectedJob
     ? -1
     : selectedJob.kind === "inbound"
@@ -312,7 +558,10 @@ export function OperationsSimulator() {
         : 1
       : selectedJob.kind === "sale"
         ? 6
-        : [2, 3, 3, 4, 5, 5][selectedJob.stage];
+        : ([2, 3, 3, 4, 5, 5][selectedJob.stage] ?? -1);
+  const operationDetail = selectedJob
+    ? `${selectedJob.id} · ${selectedJobProduct?.name ?? selectedJob.sku} · ${selectedJob.quantity} ${selectedJobProduct?.unit ?? "đơn vị"} · ${stages[selectedJob.kind][selectedJob.stage]}`
+    : "Chưa có tác vụ tại khu vực này";
 
   return (
     <div className="sim-app" data-hydrated={hydrated}>
@@ -346,7 +595,12 @@ export function OperationsSimulator() {
         <p className="sim-nav-label">WORKSPACE</p>
         <nav>
           {navigation.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={page === id ? "active" : ""} onClick={() => go(id)}>
+            <button
+              key={id}
+              className={page === id ? "active" : ""}
+              onClick={() => go(id)}
+              aria-disabled={id === "audit" && !can(role, "audit:read")}
+            >
               <Icon size={18} />
               <span>{label}</span>
               {page === id && <span className="sim-nav-dot" />}
@@ -400,10 +654,10 @@ export function OperationsSimulator() {
             <CircleHelp size={17} /> Trợ giúp & hướng dẫn <ArrowUpRight size={14} />
           </button>
           <div className="sim-profile">
-            <span>AD</span>
+            <span>{role === "manager" ? "QL" : role === "staff" ? "NV" : "KT"}</span>
             <div>
-              <b>Quản trị viên</b>
-              <small>Phiên mô phỏng cục bộ</small>
+              <b>{roleLabels[role].name}</b>
+              <small>RBAC · {roleLabels[role].short}</small>
             </div>
             <ShieldCheck size={18} />
           </div>
@@ -434,12 +688,30 @@ export function OperationsSimulator() {
           <span className="sim-top-status">
             <i /> Phiên mô phỏng
           </span>
+          <label className="sim-role-switch">
+            <ShieldCheck size={15} />
+            <span>Vai trò</span>
+            <select
+              aria-label="Vai trò RBAC"
+              value={role}
+              onChange={(event) => {
+                const next = event.target.value as UserRole;
+                recordAudit("SWITCH_ROLE", next, "VIEWED", `Chuyển từ ${role} sang ${next}`);
+                setRole(next);
+                if (page === "audit" && !can(next, "audit:read")) setPage("overview");
+              }}
+            >
+              <option value="staff">Nhân viên sàn</option>
+              <option value="manager">Quản lý</option>
+              <option value="auditor">Kiểm toán viên</option>
+            </select>
+          </label>
           <button
             className="sim-alert-btn"
             title="Xem cảnh báo"
             aria-label={`Xem ${alerts} cảnh báo`}
             onClick={() => {
-              setPage("overview");
+              openAlertCenter();
             }}
           >
             <AlertTriangle size={18} />
@@ -467,7 +739,7 @@ export function OperationsSimulator() {
             <div className="sim-title-actions">
               <button className="sim-button" onClick={exportData}>
                 <Download size={16} />
-                <span>Xuất dữ liệu</span>
+                <span>Xuất CSV</span>
               </button>
               <button
                 className="sim-button primary"
@@ -521,10 +793,10 @@ export function OperationsSimulator() {
               label="Cần theo dõi"
               value={String(alerts).padStart(2, "0")}
               unit="cảnh báo"
-              sub={`${damaged} hàng cách ly · ${lowStock.length} kệ sắp hết`}
+              sub={`${damaged} hàng cách ly · ${inventoryStats.lowStock} kệ sắp hết`}
               tone="amber"
               mini={[70, 62, 58, 62, 41, 48, 40, 32, 37, 26]}
-              onClick={() => go("overview")}
+              onClick={() => openAlertCenter()}
             />
           </div>
 
@@ -533,28 +805,26 @@ export function OperationsSimulator() {
             onInventory={showInventory}
             onNextDay={() => {
               dispatch({ type: "advance-day" });
-              setRunning(false);
-              setNotice("Đã sang ngày mới và cách ly lô hết hạn. Nhấn Chạy để tiếp tục mô phỏng.");
+              setNotice("Đã sang ngày mới, cách ly lô hết hạn và tiếp tục mô phỏng.");
             }}
           />
           <div className="grocery-retail-controls">
-            <button
-              className={`sim-button ${state.autoRetail ? "primary" : ""}`}
-              aria-pressed={state.autoRetail}
-              onClick={() => dispatch({ type: "auto-retail", enabled: !state.autoRetail })}
-            >
+            <span className="sim-button primary grocery-auto-live">
               <ShoppingCart size={16} />
-              {state.autoRetail ? "Khách mua tự động: bật" : "Bật khách mua tự động"}
-            </button>
+              Khách mua & đơn online tự động · LIVE
+            </span>
             <span>7:00–21:00 · Lượt mua theo phút · Tự bổ sung khi kệ thấp</span>
             <strong>
-              {fmt(state.sold)} đơn vị đã bán <small>· {fmt(state.revenue)} ₫</small>
+              {fmt(state.sold)} đơn vị đã bán{" "}
+              <small>
+                ·{" "}
+                {can(role, "financial:read")
+                  ? `${fmt(state.revenue)} ₫`
+                  : "Doanh thu bị ẩn bởi RBAC"}
+              </small>
             </strong>
             {page !== "simulation" && (
-              <button className="sim-button" onClick={() => setRunning((v) => !v)}>
-                {running ? <Pause size={14} /> : <Play size={14} />} {running ? "Tạm dừng" : "Chạy"}{" "}
-                · {clockLabel(state.time)}
-              </button>
+              <span className="grocery-running-clock">● Đang chạy · {clockLabel(state.time)}</span>
             )}
           </div>
 
@@ -577,9 +847,7 @@ export function OperationsSimulator() {
                         <Store size={16} /> Cửa hàng <span>ST-01</span>
                       </button>
                     </div>
-                    <Tag tone={running ? "green" : "gray"}>
-                      {running ? "Đang mô phỏng" : "Tạm dừng"}
-                    </Tag>
+                    <Tag>LIVE · Luôn chạy</Tag>
                   </div>
                   <div className="sim-map-toolbar">
                     <div className="sim-view-switch">
@@ -634,6 +902,21 @@ export function OperationsSimulator() {
                       selected={selected?.id ?? null}
                       onSelect={setSelected}
                     />
+                    <button
+                      className="sim-map-alert-strip"
+                      onClick={() => openAlertCenter()}
+                      aria-label={`Mở ${alerts} cảnh báo vận hành`}
+                    >
+                      <span>
+                        <AlertTriangle size={17} />
+                      </span>
+                      <b>{criticalAlerts.length} cảnh báo đỏ</b>
+                      <small>
+                        {alerts - criticalAlerts.length} cảnh báo cần theo dõi · Rule engine đang
+                        quét live
+                      </small>
+                      <ChevronRight size={15} />
+                    </button>
                     <div className="sim-map-tools">
                       <IconButton
                         icon={Plus}
@@ -683,18 +966,10 @@ export function OperationsSimulator() {
                     <div className="sim-click-hint">Nhấp vào đối tượng để xem chi tiết</div>
                   </div>
                   <div className="sim-playback">
-                    <button
-                      className={`sim-play ${running ? "" : "paused"}`}
-                      aria-label={running ? "Tạm dừng mô phỏng" : "Chạy mô phỏng"}
-                      onClick={() => setRunning((v) => !v)}
-                    >
-                      {running ? (
-                        <Pause size={15} fill="currentColor" />
-                      ) : (
-                        <Play size={15} fill="currentColor" />
-                      )}
-                      <span>{running ? "Tạm dừng" : "Chạy"}</span>
-                    </button>
+                    <span className="sim-play sim-always-running" aria-label="Mô phỏng luôn chạy">
+                      <span className="sim-live-dot" />
+                      <span>Luôn chạy</span>
+                    </span>
                     <IconButton
                       icon={RotateCcw}
                       label="Khởi động lại mô phỏng"
@@ -937,6 +1212,9 @@ export function OperationsSimulator() {
                 <div className="sim-pipeline-label">
                   <span>END-TO-END FLOW</span>
                   <b>Hành trình hàng hóa</b>
+                  <small className={selectedJob ? "is-running" : ""} aria-live="polite">
+                    <i /> {operationDetail}
+                  </small>
                 </div>
                 <div className="sim-flow-steps">
                   {[
@@ -948,7 +1226,10 @@ export function OperationsSimulator() {
                     { icon: Store, text: "Lên kệ" },
                     { icon: CheckCheck, text: "Thanh toán" },
                   ].map(({ icon: Icon, text }, i) => (
-                    <div key={text} className={pipelineStep === i ? "active" : ""}>
+                    <div
+                      key={text}
+                      className={pipelineStep === i ? "active" : pipelineStep > i ? "complete" : ""}
+                    >
                       <span>
                         <Icon size={16} />
                       </span>
@@ -973,12 +1254,21 @@ export function OperationsSimulator() {
             />
           )}
 
+          {page === "orders" && (
+            <CustomerOrders
+              state={state}
+              role={role}
+              onCreate={createCustomerOrder}
+              onToggleAuto={toggleAutoOrders}
+            />
+          )}
+
           {page === "overview" && (
             <div className="sim-overview-grid">
               <section className="sim-data-panel">
                 <div className="sim-panel-title">
                   <h2>Tổng quan vận hành</h2>
-                  <Tag>{running ? "Đang chạy" : "Tạm dừng"}</Tag>
+                  <Tag>LIVE · Luôn chạy</Tag>
                 </div>
                 <div className="sim-summary-cards">
                   {[
@@ -1037,36 +1327,24 @@ export function OperationsSimulator() {
                   <Tag tone="amber">{alerts} cảnh báo</Tag>
                 </div>
                 <div className="sim-alert-list">
-                  {lowStock.slice(0, 6).map((p) => (
-                    <div key={p.id}>
+                  {operationalAlerts.slice(0, 6).map((alert) => (
+                    <div key={alert.id} className={alert.severity}>
                       <AlertTriangle size={19} />
                       <div>
-                        <b>Kệ {p.name} sắp hết hàng</b>
+                        <b>{alert.title}</b>
                         <p>
-                          {p.id} · Còn {p.shelf} sản phẩm trên kệ.
+                          {alert.sku} · {alert.detail}
                         </p>
-                        <button onClick={() => openCommand("transfer", p.id)}>
-                          Tạo lệnh bổ sung <ArrowRight size={13} />
+                        <button onClick={() => openAlertCenter(alert.id)}>
+                          Xem nguyên nhân & đề xuất RAG <ArrowRight size={13} />
                         </button>
                       </div>
                     </div>
                   ))}
-                  {lowStock.length > 6 && (
-                    <button className="sim-button" onClick={() => showInventory("low")}>
-                      Xem tất cả {fmt(lowStock.length)} SKU cần bổ sung
+                  {operationalAlerts.length > 6 && (
+                    <button className="sim-button" onClick={() => openAlertCenter()}>
+                      Mở tất cả {fmt(operationalAlerts.length)} cảnh báo
                     </button>
-                  )}
-                  {damaged > 0 && (
-                    <div>
-                      <AlertTriangle size={19} />
-                      <div>
-                        <b>{damaged} sản phẩm trong khu cách ly</b>
-                        <p>Hàng cách ly không được tính vào tồn khả dụng.</p>
-                        <button onClick={() => go("inventory")}>
-                          Kiểm tra tồn kho <ArrowRight size={13} />
-                        </button>
-                      </div>
-                    </div>
                   )}
                   {alerts === 0 && (
                     <div className="sim-empty">
@@ -1078,6 +1356,19 @@ export function OperationsSimulator() {
               </section>
             </div>
           )}
+
+          {page === "metrics" && (
+            <MetricsDashboard
+              state={state}
+              role={role}
+              rescueDecisions={rescueDecisions}
+              onOpenRescue={() => setRescueOpen(true)}
+            />
+          )}
+
+          {page === "scenarios" && <ScenarioLab state={state} role={role} onRun={auditScenario} />}
+
+          {page === "audit" && can(role, "audit:read") && <AuditPanel entries={auditEntries} />}
 
           {page === "cameras" && (
             <section className="sim-data-panel">
@@ -1347,6 +1638,29 @@ export function OperationsSimulator() {
         onClose={() => setInspectedProductId(null)}
         onCommand={openCommand}
       />
+      <AlertCenter
+        open={alertsOpen}
+        onOpenChange={setAlertsOpen}
+        state={state}
+        alerts={operationalAlerts}
+        focusId={alertFocusId}
+        onCommand={openCommand}
+        onInspect={setInspectedProductId}
+        onInventory={showInventory}
+        onAskRag={(question) => setRagRequest({ id: Date.now(), question })}
+        onFoodRescue={() => {
+          setAlertsOpen(false);
+          setRescueOpen(true);
+        }}
+      />
+      <FoodRescueCenter
+        open={rescueOpen}
+        onOpenChange={setRescueOpen}
+        state={state}
+        role={role}
+        decisions={rescueDecisions}
+        onDecision={decideRescue}
+      />
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent className="sim-modal">
           <DialogTitle>Khởi động lại mô phỏng?</DialogTitle>
@@ -1362,7 +1676,6 @@ export function OperationsSimulator() {
               className="sim-button primary"
               onClick={() => {
                 dispatch({ type: "reset" });
-                setRunning(true);
                 setSpeed(1);
                 setSelected(null);
                 setResetOpen(false);
@@ -1396,14 +1709,14 @@ export function OperationsSimulator() {
             <li>
               <b>Điều khiển thời gian</b>
               <p>
-                Tạm dừng, tăng tốc đến 60× hoặc sang ngày tiếp theo để quan sát lô hết hạn. Bật
-                khách mua tự động để mô phỏng bán và bổ sung kệ.
+                Mô phỏng và khách mua luôn chạy. Chọn tốc độ đến 60× hoặc sang ngày tiếp theo để
+                quan sát lô hết hạn.
               </p>
             </li>
             <li>
               <b>Kiểm tra dữ liệu</b>
               <p>
-                Tìm theo SKU, tạo tình huống hàng hỏng tại mục tồn kho và xuất phiên thành JSON.
+                Tìm theo SKU, hỏi trợ lý Live State, tạo hàng hỏng và xuất tồn theo lô thành CSV.
               </p>
             </li>
           </ol>
@@ -1422,6 +1735,13 @@ export function OperationsSimulator() {
           </button>
         </div>
       )}
+      <Chatbot
+        state={state}
+        request={ragRequest}
+        onGuardrailBlocked={(code, question) =>
+          recordAudit("AI_GUARDRAIL", code, "BLOCKED", question.slice(0, 160))
+        }
+      />
     </div>
   );
 }

@@ -7,12 +7,15 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev --config .output/server/wrangler.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "playwright test",
     "typecheck": "tsc --noEmit",
-    "data:generate": "node scripts/export-grocery-data.mjs"
+    "data:generate": "node scripts/export-grocery-data.mjs",
+    "verify": "npm run typecheck && npm run build && npm test",
+    "preview:cloudflare": "npm run preview",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config .output/server/wrangler.json"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -89,6 +92,7 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5"
+    "vite": "8.1.5",
+    "wrangler": "^4.131.2"
   }
 }
