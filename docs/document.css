@@ -1,0 +1,242 @@
+* {
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+body {
+  margin: 0;
+  color: #18372b;
+  font-family: Arial, "Segoe UI", sans-serif;
+  background: white;
+}
+
+h1,
+h2,
+h3 {
+  color: #153d2f;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+h2 {
+  margin: 18px 0 8px;
+  font-size: 18px;
+}
+
+h3 {
+  margin: 14px 0 6px;
+  color: #246c4c;
+  font-size: 13px;
+}
+
+p,
+li,
+td,
+th {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+p {
+  margin: 6px 0;
+}
+
+ul,
+ol {
+  margin: 6px 0 10px;
+  padding-left: 22px;
+}
+
+li {
+  margin: 3px 0;
+}
+
+a {
+  color: #247653;
+}
+
+blockquote {
+  margin: 12px 0;
+  padding: 10px 13px;
+  border-left: 4px solid #2e9667;
+  color: #315c49;
+  background: #edf8f1;
+}
+
+pre {
+  padding: 11px;
+  border-radius: 6px;
+  color: #e7f4ec;
+  background: #173b2e;
+  font: 9px/1.5 Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+table {
+  width: 100%;
+  margin: 9px 0 14px;
+  border-collapse: collapse;
+}
+
+th {
+  padding: 7px;
+  color: white;
+  background: #235f46;
+  text-align: left;
+}
+
+td {
+  padding: 7px;
+  border: 1px solid #dce5df;
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #f6faf7;
+}
+
+img {
+  display: block;
+  width: 100%;
+  max-height: 150mm;
+  margin: 10px 0 5px;
+  border: 1px solid #d8e4dc;
+  border-radius: 7px;
+  object-fit: contain;
+  object-position: top;
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+body.guide > h1:first-child {
+  margin-top: 25mm;
+  color: #174c37;
+  font-size: 36px;
+}
+
+body.guide > h2:first-of-type {
+  color: #4e6b5f;
+  font-size: 20px;
+}
+
+body.guide > p:first-of-type {
+  color: #2d855c;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+body.brief {
+  background: #eef3ef;
+}
+
+.brief .page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 17mm 16mm 14mm;
+  overflow: hidden;
+  background: white;
+  page-break-after: always;
+}
+
+.brief .page:last-child {
+  page-break-after: auto;
+}
+
+.brief .page::after {
+  position: absolute;
+  right: 16mm;
+  bottom: 8mm;
+  color: #71837a;
+  font-size: 8px;
+  content: "WareSim AI · Bảng C · Tài liệu xin góp ý";
+}
+
+.brief .cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(145deg, #12372c, #1f684c 62%, #9ac581);
+}
+
+.brief .cover::after {
+  content: "";
+}
+
+.brief .cover h1 {
+  margin: 15mm 0 4mm;
+  color: white;
+  font-size: 52px;
+}
+
+.brief .cover h2 {
+  max-width: 165mm;
+  color: #e7f5ec;
+  font-size: 26px;
+}
+
+.brief .cover p,
+.brief .cover td,
+.brief .cover th {
+  color: #e0f0e6;
+}
+
+.brief .cover table {
+  margin-top: 18mm;
+}
+
+.brief .cover th,
+.brief .cover td {
+  border-color: #ffffff44;
+  background: #ffffff12;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.brief .page > h1 {
+  margin-bottom: 7mm;
+}
+
+.brief .page img {
+  height: 112mm;
+  object-fit: cover;
+  object-position: top;
+}
+
+.brief .page:nth-of-type(4) img {
+  display: inline-block;
+  width: 48.8%;
+  height: 72mm;
+  margin-right: 1%;
+  vertical-align: top;
+}
+
+.brief .page:nth-of-type(5) img {
+  height: 47mm;
+  margin: 5px 0 3px;
+}
+
+.brief blockquote {
+  margin-top: 7mm;
+}
+
+.brief .page:last-child h2 {
+  margin-top: 11px;
+}
+
+.brief .page:last-child li {
+  margin: 2px 0;
+}

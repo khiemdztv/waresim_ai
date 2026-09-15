@@ -1,0 +1,553 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>WareSim AI</title><style>* {
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+body {
+  margin: 0;
+  color: #18372b;
+  font-family: Arial, "Segoe UI", sans-serif;
+  background: white;
+}
+
+h1,
+h2,
+h3 {
+  color: #153d2f;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+h2 {
+  margin: 18px 0 8px;
+  font-size: 18px;
+}
+
+h3 {
+  margin: 14px 0 6px;
+  color: #246c4c;
+  font-size: 13px;
+}
+
+p,
+li,
+td,
+th {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+p {
+  margin: 6px 0;
+}
+
+ul,
+ol {
+  margin: 6px 0 10px;
+  padding-left: 22px;
+}
+
+li {
+  margin: 3px 0;
+}
+
+a {
+  color: #247653;
+}
+
+blockquote {
+  margin: 12px 0;
+  padding: 10px 13px;
+  border-left: 4px solid #2e9667;
+  color: #315c49;
+  background: #edf8f1;
+}
+
+pre {
+  padding: 11px;
+  border-radius: 6px;
+  color: #e7f4ec;
+  background: #173b2e;
+  font: 9px/1.5 Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+table {
+  width: 100%;
+  margin: 9px 0 14px;
+  border-collapse: collapse;
+}
+
+th {
+  padding: 7px;
+  color: white;
+  background: #235f46;
+  text-align: left;
+}
+
+td {
+  padding: 7px;
+  border: 1px solid #dce5df;
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #f6faf7;
+}
+
+img {
+  display: block;
+  width: 100%;
+  max-height: 150mm;
+  margin: 10px 0 5px;
+  border: 1px solid #d8e4dc;
+  border-radius: 7px;
+  object-fit: contain;
+  object-position: top;
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+body.guide > h1:first-child {
+  margin-top: 25mm;
+  color: #174c37;
+  font-size: 36px;
+}
+
+body.guide > h2:first-of-type {
+  color: #4e6b5f;
+  font-size: 20px;
+}
+
+body.guide > p:first-of-type {
+  color: #2d855c;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+body.brief {
+  background: #eef3ef;
+}
+
+.brief .page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 17mm 16mm 14mm;
+  overflow: hidden;
+  background: white;
+  page-break-after: always;
+}
+
+.brief .page:last-child {
+  page-break-after: auto;
+}
+
+.brief .page::after {
+  position: absolute;
+  right: 16mm;
+  bottom: 8mm;
+  color: #71837a;
+  font-size: 8px;
+  content: "WareSim AI · Bảng C · Tài liệu xin góp ý";
+}
+
+.brief .cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(145deg, #12372c, #1f684c 62%, #9ac581);
+}
+
+.brief .cover::after {
+  content: "";
+}
+
+.brief .cover h1 {
+  margin: 15mm 0 4mm;
+  color: white;
+  font-size: 52px;
+}
+
+.brief .cover h2 {
+  max-width: 165mm;
+  color: #e7f5ec;
+  font-size: 26px;
+}
+
+.brief .cover p,
+.brief .cover td,
+.brief .cover th {
+  color: #e0f0e6;
+}
+
+.brief .cover table {
+  margin-top: 18mm;
+}
+
+.brief .cover th,
+.brief .cover td {
+  border-color: #ffffff44;
+  background: #ffffff12;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.brief .page > h1 {
+  margin-bottom: 7mm;
+}
+
+.brief .page img {
+  height: 112mm;
+  object-fit: cover;
+  object-position: top;
+}
+
+.brief .page:nth-of-type(4) img {
+  display: inline-block;
+  width: 48.8%;
+  height: 72mm;
+  margin-right: 1%;
+  vertical-align: top;
+}
+
+.brief .page:nth-of-type(5) img {
+  height: 47mm;
+  margin: 5px 0 3px;
+}
+
+.brief blockquote {
+  margin-top: 7mm;
+}
+
+.brief .page:last-child h2 {
+  margin-top: 11px;
+}
+
+.brief .page:last-child li {
+  margin: 2px 0;
+}
+</style></head><body class="guide"><h1>HƯỚNG DẪN SỬ DỤNG WARESIM AI</h1>
+<h2>Dành cho người quản lý vận hành và chuyên gia góp ý</h2>
+<p>Phiên bản 2.0 — cập nhật ngày 15/09/2026</p>
+<p>Phạm vi: Digital Twin kho – cửa hàng, 3.000 SKU, 9.025 lô, FEFO/HSD, đơn hàng, Auto Order, Hybrid RAG, What‑If, Food Rescue, RBAC và Audit.</p>
+<blockquote>Tài liệu này thay thế phiên bản 1.0 vốn mô tả ML service và Decision Center không còn khớp kiến trúc hiện tại. File gốc được giữ nguyên để đối chiếu.</blockquote>
+<p>Nguyên tắc vận hành: dữ liệu của phiên là nguồn sự thật; AI chỉ diễn giải hoặc khuyến nghị; con người phê duyệt hành động có tác động; kết quả phải kiểm chứng qua Live State, Event History và Audit.</p>
+<div class="page-break"></div>
+<h1>1. WareSim AI là gì?</h1>
+<p>WareSim AI là prototype Digital Twin mô phỏng đồng thời kho dự trữ WH‑01 và cửa hàng ST‑01. Hệ thống kết hợp quy tắc tồn kho xác định, truy xuất dữ liệu theo ngữ cảnh và LLM tùy chọn để hỗ trợ quyết định có bằng chứng.</p>
+<table><thead><tr><th>Thành phần</th><th>Quy mô/phạm vi</th></tr></thead><tbody>
+<tr><td>Danh mục</td><td>3.000 SKU thuộc 21 nhóm hàng</td></tr>
+<tr><td>Quản lý lô</td><td>9.025 lô có ngày sản xuất, ngày nhận và HSD</td></tr>
+<tr><td>Vùng bảo quản</td><td>Khô, mát và đông</td></tr>
+<tr><td>Luồng nghiệp vụ</td><td>Nhập hàng, bổ sung kệ, bán/POS, cách ly</td></tr>
+<tr><td>Tự động hóa</td><td>Khách mua nền và Auto Order trong giờ mở cửa</td></tr>
+<tr><td>Hỗ trợ AI</td><td>Hybrid RAG, Dynamic Reorder, Food Rescue, What‑If</td></tr>
+<tr><td>Quản trị</td><td>RBAC, prompt guardrail, Human Override, audit hash chain</td></tr>
+</tbody></table>
+<h2>1.1 Bài toán thực tiễn</h2>
+<ul>
+<li>Hết hàng trên kệ dù kho dự trữ còn hàng.</li>
+<li>Khó ưu tiên đúng lô FEFO và xử lý hàng cận hạn.</li>
+<li>Đơn khách cá nhân và doanh nghiệp cùng cạnh tranh một lượng tồn.</li>
+<li>LLM có thể trả lời trôi khỏi số liệu hiện tại nếu không được grounding.</li>
+<li>Khuyến nghị AI thiếu bằng chứng, quyền hạn và dấu vết phê duyệt.</li>
+</ul>
+<h2>1.2 Kiến trúc vận hành</h2>
+<table><thead><tr><th>Lớp</th><th>Vai trò</th><th>Nguồn sự thật</th></tr></thead><tbody>
+<tr><td>Canonical simulator</td><td>FEFO, reservation, nhập/chuyển/bán, HSD, bất biến tồn</td><td>Live State theo SKU/lô</td></tr>
+<tr><td>Rule Engine</td><td>Hết kệ, tồn thấp, cận hạn, hết hạn/cách ly</td><td>Luật xác định</td></tr>
+<tr><td>Hybrid RAG</td><td>Truy xuất state, lịch sử, SOP rồi mới gọi Groq</td><td>Context đã truy xuất</td></tr>
+<tr><td>Decision support</td><td>Dynamic Reorder, Food Rescue, What‑If, ba agent</td><td>Bản sao snapshot</td></tr>
+<tr><td>Governance</td><td>RBAC, guardrail, human approval, audit</td><td>Chính sách và nhật ký</td></tr>
+</tbody></table>
+<img src="assets/01-overview.png" alt="Tổng quan vận hành">
+<p>Hình 1 — Dashboard tổng quan lấy số liệu trực tiếp từ Live State.</p>
+<blockquote>Giới hạn: đây là prototype dùng dữ liệu giả lập, chưa phải WMS/POS/ERP thật. Trạng thái hiện sống trong phiên trình duyệt và reset khi tải lại.</blockquote>
+<div class="page-break"></div>
+<h1>2. Khởi động local và kiểm tra đầu phiên</h1>
+<h2>2.1 Yêu cầu</h2>
+<ul>
+<li>Node.js 22 trở lên.</li>
+<li>Trình duyệt Chrome, Edge hoặc Chromium hiện đại.</li>
+<li>Groq API key là tùy chọn; không có key thì RAG deterministic vẫn hoạt động.</li>
+</ul>
+<h2>2.2 Khởi động</h2>
+<pre>cd "D:\Documents\AI Talent\Building Blocks"
+npm install
+npm run dev -- --host 127.0.0.1 --port 3000</pre>
+<p>Mở http://127.0.0.1:3000. Không cần ML service, Python server hoặc database để sử dụng core simulator.</p>
+<h2>2.3 Checklist đầu phiên</h2>
+<ol>
+<li>Trang hiển thị 3.000 SKU, 9.025 lô và đồng hồ đang tăng.</li>
+<li>Chọn vai trò trên thanh đầu trang: Nhân viên sàn, Quản lý hoặc Kiểm toán viên.</li>
+<li>Mở Trung tâm cảnh báo và kiểm tra bằng chứng Live State.</li>
+<li>Mở chatbot, hỏi “SKU‑0001 còn bao nhiêu?” và kiểm tra nhãn nguồn/snapshot.</li>
+<li>Nếu có key, câu trả lời ghi GROQ openai/gpt‑oss‑20b; nếu lỗi sẽ ghi LOCAL FALLBACK cùng nguyên nhân.</li>
+</ol>
+<h2>2.4 Ma trận quyền hiện tại</h2>
+<table><thead><tr><th>Vai trò</th><th>Xem dữ liệu</th><th>Tạo nghiệp vụ</th><th>Duyệt Food Rescue</th><th>Audit</th></tr></thead><tbody>
+<tr><td>Nhân viên sàn</td><td>Có</td><td>Chỉ bổ sung theo quyền</td><td>Không</td><td>Không</td></tr>
+<tr><td>Quản lý</td><td>Có, gồm tài chính</td><td>Nhập/chuyển/bán/đơn hàng</td><td>Có</td><td>Xem</td></tr>
+<tr><td>Kiểm toán viên</td><td>Chỉ đọc theo policy</td><td>Không</td><td>Không</td><td>Xem và kiểm tra chuỗi</td></tr>
+</tbody></table>
+<blockquote>Bảo mật khóa: GROQ_API_KEY chỉ đặt trong .env.local hoặc Cloudflare secret, không dùng tiền tố VITE_ và không đưa vào Git.</blockquote>
+<div class="page-break"></div>
+<h1>3. Mô phỏng không gian và quản lý tồn kho</h1>
+<h2>3.1 Mô phỏng không gian</h2>
+<ol>
+<li>Chọn Kho hàng WH‑01 hoặc Cửa hàng ST‑01.</li>
+<li>Đổi Phối cảnh/Mặt bằng; bật nhãn, luồng di chuyển và camera.</li>
+<li>Nhấp kệ, nhân viên, thiết bị hoặc khu vực để xem chi tiết.</li>
+<li>Tạo quy trình và quan sát tuyến chuyển động, mã tác vụ, SKU cùng bước đang thực hiện.</li>
+<li>Dùng 1× để trình bày, 2×/5× để demo và 60× để kiểm thử nhanh.</li>
+</ol>
+<img src="assets/02-simulation-action.png" alt="Hoạt ảnh quy trình">
+<p>Hình 2 — Hoạt ảnh tác vụ gắn với trạng thái nghiệp vụ thay vì minh họa ngẫu nhiên.</p>
+<h2>3.2 Quản lý tồn kho và lô</h2>
+<ul>
+<li>Tìm không dấu theo SKU, tên, nhãn; lọc nhóm, vùng nhiệt, tồn thấp, cận/hết hạn.</li>
+<li>Xem từng lô: NSX, ngày nhận, HSD, kho, kệ, backroom, transit, damaged và expired.</li>
+<li>Nhập hàng: kiểm tra HSD rồi tăng kho khi quy trình hoàn tất.</li>
+<li>Bổ sung: giữ lô FEFO, đi qua kho → transit → backroom → kệ.</li>
+<li>Bán: giữ tồn kệ khi tạo tác vụ; chỉ trừ hàng và cộng doanh thu khi thanh toán hoàn tất.</li>
+<li>Cách ly: loại hàng hỏng/hết hạn khỏi tồn khả dụng.</li>
+</ul>
+<blockquote>Bất biến kiểm chứng: kho + kệ + transit + backroom + cách ly = tồn ban đầu + đã nhập − đã bán.</blockquote>
+<div class="page-break"></div>
+<h1>4. Quy trình nghiệp vụ cơ bản</h1>
+<h2>4.1 Nhập hàng vào kho</h2>
+<ol>
+<li>Chọn Nhập hàng mới hoặc Tạo quy trình.</li>
+<li>Chọn SKU, số lượng và HSD nếu sản phẩm yêu cầu.</li>
+<li>HSD phải từ ngày mô phỏng đến ngày mô phỏng cộng vòng đời giả định.</li>
+<li>Theo dõi Tiếp nhận NCC → Kiểm tra lô &amp; HSD → Cất đúng vùng nhiệt → Hoàn tất.</li>
+<li>Tồn kho chỉ tăng khi quy trình hoàn tất.</li>
+</ol>
+<h2>4.2 Bổ sung từ kho lên kệ</h2>
+<ol>
+<li>Kiểm tra kho khả dụng, reservation và sức chứa còn lại của kệ.</li>
+<li>Chọn Bổ sung/Chuyển hàng và nhập số lượng.</li>
+<li>Hệ thống tự phân bổ lô theo FEFO; người dùng không chọn lô tùy ý.</li>
+<li>Theo dõi Chọn lô → Lấy hàng → Kiểm tra → Transit → Backroom → Lên kệ.</li>
+<li>Nếu lô hết hạn giữa quy trình, tác vụ bị hủy và phần còn hạn được hoàn về đúng vị trí.</li>
+</ol>
+<h2>4.3 Bán hàng/POS</h2>
+<ol>
+<li>Chọn Bán hoặc tạo đơn đặt hàng.</li>
+<li>Hệ thống giữ tồn kệ theo lô ngay khi tạo tác vụ.</li>
+<li>Theo dõi Khách chọn hàng → Quét mã → Thanh toán → Hoàn tất.</li>
+<li>Chỉ khi thanh toán hoàn tất, tồn kệ giảm và doanh thu mô phỏng tăng.</li>
+<li>Lượng vượt tồn khả dụng bị từ chối, không tạo tồn âm.</li>
+</ol>
+<h2>4.4 Cách ly</h2>
+<p>Hàng hỏng hoặc hết hạn được đưa khỏi tồn khả dụng vào khu cách ly. Quản lý phải kiểm đếm và xử lý theo SOP; không tự sửa số tồn để làm đẹp kết quả.</p>
+<div class="page-break"></div>
+<h1>5. Đơn hàng và Auto Order</h1>
+<h2>5.1 Tạo đơn khách cá nhân/doanh nghiệp</h2>
+<ol>
+<li>Mở tab Đơn đặt hàng và chọn Tạo đơn mới.</li>
+<li>Chọn khách cá nhân hoặc công ty/đơn vị.</li>
+<li>Nhập tên khách hàng, SKU và số lượng.</li>
+<li>Hệ thống kiểm tra tồn kệ khả dụng, giữ đúng lô FEFO và liên kết đơn với tác vụ POS.</li>
+<li>Theo dõi Chờ lấy hàng → Đang xử lý → Hoàn tất/Hủy.</li>
+</ol>
+<img src="assets/03-orders.png" alt="Đơn đặt hàng">
+<p>Hình 3 — Đơn hàng cá nhân/doanh nghiệp dùng chung state và quy tắc FEFO với simulator.</p>
+<h2>5.2 Auto Order</h2>
+<p>Quản lý có quyền bật hoặc tạm dừng Auto Order. Trong giờ mở cửa 07:00–21:00, mô phỏng sinh một nhu cầu mỗi phút; đơn cá nhân thường 1–3 đơn vị và định kỳ có đơn công ty/đơn vị 4–10 đơn vị.</p>
+<table><thead><tr><th>Tình huống</th><th>Kết quả mong đợi</th></tr></thead><tbody>
+<tr><td>Đặt lớn hơn tồn kệ khả dụng</td><td>Từ chối, không tạo tồn âm</td></tr>
+<tr><td>Hai đơn cùng giữ một SKU</td><td>Reservation ngăn giữ trùng</td></tr>
+<tr><td>Lô hết hạn giữa quy trình</td><td>Tác vụ và đơn liên kết bị hủy</td></tr>
+<tr><td>Tắt Auto Order</td><td>Không ghi thêm đơn tự động</td></tr>
+</tbody></table>
+<blockquote>Hiểu đúng “Auto”: bản miễn phí tự chạy khi tab trình duyệt đang mở. Chạy 24/7 đa người dùng cần Cloudflare Cron và D1/Durable Objects hoặc backend persistent.</blockquote>
+<div class="page-break"></div>
+<h1>6. Trung tâm cảnh báo và Hybrid RAG</h1>
+<h2>6.1 Các luật cảnh báo</h2>
+<table><thead><tr><th>Luật</th><th>Điều kiện</th><th>Hành động gợi ý</th></tr></thead><tbody>
+<tr><td>OUT_OF_STOCK</td><td>Tồn kệ bằng 0</td><td>Bổ sung FEFO hoặc nhập nếu kho hết</td></tr>
+<tr><td>LOW_STOCK</td><td>Tồn kệ ≤ reorder point</td><td>Tính sức chứa và kho khả dụng</td></tr>
+<tr><td>EXPIRY_NEAR</td><td>Lô vào cửa sổ HSD</td><td>Ưu tiên bán, markdown hoặc chuyển tặng</td></tr>
+<tr><td>EXPIRED_QUARANTINE</td><td>Có hàng hết hạn cách ly</td><td>Kiểm đếm và xử lý theo SOP</td></tr>
+</tbody></table>
+<p>Mỗi cảnh báo trình bày phát hiện, nguyên nhân, ảnh hưởng, bằng chứng Live State và đề xuất có nguồn. AI chỉ giải thích cảnh báo đã được Rule Engine xác định.</p>
+<h2>6.2 Luồng Hybrid RAG</h2>
+<ol>
+<li>Guardrail kiểm tra prompt override, lấy secret, vượt quyền và giao dịch nguy hiểm.</li>
+<li>Query Router xác định Live State, Event History, Rule Engine hoặc SOP cần truy xuất.</li>
+<li>Hệ thống tạo câu trả lời deterministic và citations từ snapshot.</li>
+<li>Nếu có Groq, LLM chỉ diễn giải context đã truy xuất; không tự sửa số liệu hoặc tác động tồn.</li>
+<li>Nếu Groq lỗi/không có key, RAG local vẫn trả lời và ghi LOCAL FALLBACK.</li>
+</ol>
+<img src="assets/07-groq-rag.png" alt="Hybrid RAG">
+<p>Hình 4 — Câu trả lời hiển thị model, nguồn, snapshot và dữ liệu RAG gốc để đối chiếu.</p>
+<div class="page-break"></div>
+<h1>7. Metrics, Dynamic Reorder và Food Rescue</h1>
+<h2>7.1 Dashboard đánh giá</h2>
+<ul>
+<li>Golden set local đo routing accuracy.</li>
+<li>Grounding/faithfulness proxy kiểm tra số liệu có bám context.</li>
+<li>Hallucination proxy phát hiện mã/số liệu không có trong bằng chứng.</li>
+<li>P95 retrieval đo Query Router + retrieval local, không bao gồm mạng Groq.</li>
+<li>KPI OOS, cơ hội Food Rescue và vòng quay lấy từ Live State.</li>
+</ul>
+<img src="assets/04-metrics.png" alt="Metrics">
+<p>Hình 5 — Chỉ số có thể tái chạy từ cùng snapshot; mục tiêu pilot không được trình bày như kết quả đã đạt.</p>
+<h2>7.2 Dynamic Reorder Point</h2>
+<p>Mô hình nhẹ dùng daily demand, lead time và safety stock 95%. Kết quả phục vụ tham khảo trong prototype, không thay thế chính sách mua hàng thực.</p>
+<h2>7.3 Food Rescue</h2>
+<ul>
+<li>T−24 giờ: đề xuất Flash Sale giảm 25%.</li>
+<li>T−8 giờ: đề xuất Giờ vàng giảm 50%.</li>
+<li>T−2 giờ: đề xuất đóng gói chuyển Food Bank.</li>
+<li>Kế hoạch chỉ là bản nháp; Quản lý duyệt hoặc Human Override.</li>
+<li>Mọi quyết định được ghi vào audit.</li>
+</ul>
+<img src="assets/05-food-rescue.png" alt="Food Rescue">
+<p>Hình 6 — Food Rescue dựa trên lô FEFO và thời gian còn lại.</p>
+<div class="page-break"></div>
+<h1>8. What‑If Digital Twin và ba agent</h1>
+<p>What‑If chạy trên bản sao Live State, tuyệt đối không thay đổi tồn thật của phiên.</p>
+<h2>8.1 Ba kịch bản</h2>
+<ul>
+<li>Nhu cầu tăng: stress test sức phục vụ và nguy cơ OOS.</li>
+<li>Nhà cung cấp giao trễ: đánh giá thiếu nguồn bổ sung.</li>
+<li>Sự cố chuỗi lạnh: đánh giá lượng hàng rủi ro và phương án điều phối.</li>
+</ul>
+<h2>8.2 Ba agent chuyên trách</h2>
+<table><thead><tr><th>Agent</th><th>Nhiệm vụ</th></tr></thead><tbody>
+<tr><td>Inventory Guardian</td><td>Xác định SKU và lô có rủi ro</td></tr>
+<tr><td>Logistics Dispatcher</td><td>Ưu tiên luồng bổ sung/điều phối</td></tr>
+<tr><td>Store Manager Copilot</td><td>Tổng hợp tác động và lượng đặt dự phòng</td></tr>
+</tbody></table>
+<p>Các agent dùng cùng một snapshot để tránh mâu thuẫn số liệu.</p>
+<img src="assets/06-what-if.png" alt="What-If">
+<p>Hình 7 — Kết quả What‑If gồm tác động, ưu tiên và đề xuất của từng agent.</p>
+<h2>8.3 Cách sử dụng</h2>
+<ol>
+<li>Chọn loại kịch bản và mức độ.</li>
+<li>Chạy mô phỏng.</li>
+<li>Đọc baseline, SKU ảnh hưởng và đề xuất.</li>
+<li>Kiểm tra giả định, không gọi kết quả sandbox là kết quả cửa hàng thật.</li>
+<li>Nếu áp dụng thủ công, tạo tác vụ canonical và theo dõi audit riêng.</li>
+</ol>
+<div class="page-break"></div>
+<h1>9. RBAC, Guardrail và Audit</h1>
+<h2>9.1 RBAC</h2>
+<p>Giao diện ẩn dữ liệu hoặc vô hiệu hóa nút theo vai trò, đồng thời handler kiểm tra quyền lần nữa trước khi thực thi. Không dựa chỉ vào việc ẩn nút.</p>
+<h2>9.2 AI Guardrail</h2>
+<p>Guardrail chạy trước Query Router và lặp lại phía server Groq để chặn:</p>
+<ul>
+<li>Yêu cầu ghi đè chỉ dẫn hệ thống.</li>
+<li>Yêu cầu lấy API key, secret, token hoặc mật khẩu.</li>
+<li>Yêu cầu vượt quyền/phê duyệt thay con người.</li>
+<li>Giao dịch nguy hiểm hoặc chuỗi lệnh phá hoại.</li>
+</ul>
+<h2>9.3 Audit hash chain</h2>
+<p>Mỗi bản ghi có sequence, previous hash và hash. Các quyết định Food Rescue, chạy What‑If, thao tác bị RBAC từ chối, tạo đơn và bật/tắt Auto Order đều có thể được ghi trong phiên.</p>
+<blockquote>Audit hiện chứng minh bản ghi không bị sửa trong phiên; audit pháp lý cần kho append‑only phía server.</blockquote>
+<h2>9.4 Quy trình phê duyệt an toàn</h2>
+<ol>
+<li>Xác nhận snapshot, SKU/lô và số liệu tồn.</li>
+<li>Kiểm tra nguồn/citation và điều kiện kích hoạt luật.</li>
+<li>So sánh baseline với What‑If; ghi rõ giới hạn.</li>
+<li>Quản lý duyệt hoặc Human Override.</li>
+<li>Theo dõi tác vụ canonical đến hoàn tất.</li>
+<li>Đối chiếu Event History và Audit.</li>
+</ol>
+<div class="page-break"></div>
+<h1>10. Kiểm chứng và giới hạn</h1>
+<h2>10.1 Bằng chứng kỹ thuật hiện tại</h2>
+<ul>
+<li>28/28 kiểm thử Playwright đạt.</li>
+<li>TypeScript typecheck đạt.</li>
+<li>Production build Cloudflare đạt.</li>
+<li>Groq server-side đã smoke test.</li>
+<li>Golden set local có thể tái chạy.</li>
+</ul>
+<p>Phạm vi kiểm thử gồm quy mô dữ liệu, FEFO nhiều lô, reservation, sức chứa, HSD, thanh toán, bất biến tồn, nửa đêm, Auto Order, RBAC, guardrail, audit, Food Rescue, What‑If, RAG và giao diện desktop/mobile.</p>
+<h2>10.2 Những điều chưa được phép khẳng định</h2>
+<ul>
+<li>Dữ liệu giả lập chưa chứng minh tác động kinh doanh thực.</li>
+<li>Golden set local chưa thay benchmark độc lập hoặc Ragas production.</li>
+<li>State theo tab chưa hỗ trợ persistence và đa người dùng.</li>
+<li>API bridge mới xác thực/chuẩn hóa contract, chưa có projector production.</li>
+<li>Audit trong RAM chưa phải audit pháp lý.</li>
+<li>What‑If và Dynamic Reorder chưa được hiệu chỉnh bằng dữ liệu cửa hàng thật.</li>
+</ul>
+<h2>10.3 Xử lý tình huống</h2>
+<table><thead><tr><th>Hiện tượng</th><th>Cách xử lý</th></tr></thead><tbody>
+<tr><td>LOCAL FALLBACK</td><td>Kiểm tra GROQ_API_KEY phía server, mạng và thông báo lỗi</td></tr>
+<tr><td>Không tạo được tác vụ</td><td>Kiểm tra vai trò, lượng khả dụng, reservation, sức chứa, HSD</td></tr>
+<tr><td>Hoạt ảnh không chạy</td><td>Kiểm tra prefers-reduced-motion; dùng 1×/2×</td></tr>
+<tr><td>Reload mất trạng thái</td><td>Đúng giới hạn prototype; cần persistence</td></tr>
+<tr><td>Expected khác Actual</td><td>Kiểm tra snapshot, events và tác vụ phát sinh</td></tr>
+</tbody></table>
+<div class="page-break"></div>
+<h1>11. Deploy miễn phí và demo 5 phút</h1>
+<h2>11.1 Deploy Cloudflare Workers</h2>
+<pre>npm run build
+npx wrangler login
+npx wrangler secret put GROQ_API_KEY --config .output/server/wrangler.json
+npm run deploy:cloudflare</pre>
+<p>Không có Groq vẫn dùng được simulator, Rule Engine, RAG deterministic, metrics và What‑If. Health endpoint là /api/v1/health. API bridge ERP/POS/WMS khóa ghi mặc định nếu chưa đặt WARESIM_BRIDGE_TOKEN.</p>
+<h2>11.2 Kịch bản demo</h2>
+<table><thead><tr><th>Thời lượng</th><th>Nội dung</th></tr></thead><tbody>
+<tr><td>0:00–0:40</td><td>Bài toán, 3.000 SKU/9.025 lô và snapshot dùng chung</td></tr>
+<tr><td>0:40–1:40</td><td>Tạo bổ sung FEFO, quan sát hoạt ảnh và tiến độ</td></tr>
+<tr><td>1:40–2:25</td><td>Tạo đơn doanh nghiệp, Auto Order và trạng thái POS</td></tr>
+<tr><td>2:25–3:15</td><td>Mở cảnh báo, hỏi RAG và đối chiếu nguồn</td></tr>
+<tr><td>3:15–4:15</td><td>Food Rescue, What‑If, ba agent, Human‑in‑the‑loop</td></tr>
+<tr><td>4:15–5:00</td><td>Metrics, RBAC/audit, test, giới hạn và roadmap</td></tr>
+</tbody></table>
+<h2>11.3 Checklist bàn giao</h2>
+<ul>
+<li>Không còn tác vụ/đơn chờ xử lý mà chưa được giải thích.</li>
+<li>Ghi nhận lô cận hạn và hàng cách ly.</li>
+<li>Kiểm tra Auto Order đang bật hay tạm dừng.</li>
+<li>Xuất CSV/audit nếu cần giữ bằng chứng trước khi reset.</li>
+<li>Ghi nhận mọi lần LOCAL FALLBACK hoặc bridge unavailable.</li>
+</ul>
+<div class="page-break"></div>
+<h1>12. Phù hợp Bảng C và câu hỏi xin chuyên gia góp ý</h1>
+<p>Theo cổng thông tin chính thức, Bảng C tập trung thiết kế, xây dựng, đánh giá và triển khai hệ thống AI với dữ liệu, mô hình, chỉ số, bảo mật và đạo đức. Trọng tâm đánh giá gồm giá trị thực tiễn, phương pháp, nguồn gốc dữ liệu, mức độ làm chủ, kết quả thử nghiệm, khả năng kiểm chứng đầu ra và khả năng triển khai.</p>
+<table><thead><tr><th>Trọng tâm Bảng C</th><th>Minh chứng WareSim</th><th>Việc cần củng cố</th></tr></thead><tbody>
+<tr><td>Giá trị thực tiễn</td><td>OOS, Food Rescue, đơn hàng, điều phối</td><td>Phỏng vấn người dùng/pilot</td></tr>
+<tr><td>Dữ liệu và mô hình</td><td>3.000 SKU/9.025 lô, giả định công khai</td><td>Hiệu chỉnh dữ liệu thật được phép</td></tr>
+<tr><td>Chỉ số và kiểm chứng</td><td>Golden set, KPI Live State, 28 test</td><td>Benchmark độc lập và user study</td></tr>
+<tr><td>Bảo mật và đạo đức</td><td>RBAC, guardrail, secret server-side, approval, audit</td><td>Threat model sâu hơn</td></tr>
+<tr><td>Khả năng triển khai</td><td>Local-first, Cloudflare, health/API bridge</td><td>Persistence và multi-user</td></tr>
+</tbody></table>
+<h2>12.1 Câu hỏi xin phản biện</h2>
+<ol>
+<li>Nên ưu tiên OOS, Food Rescue hay điều phối đơn làm use case pilot?</li>
+<li>Digital Twin cần thêm biến hoặc độ chi tiết nào?</li>
+<li>Benchmark/baseline nào phù hợp để đánh giá RAG và What‑If?</li>
+<li>Dữ liệu thật tối thiểu bao nhiêu ngày và ở cấp SKU/lô nào?</li>
+<li>Threat model và governance còn thiếu điểm nào?</li>
+<li>Lộ trình ba tháng nên ưu tiên persistence, POS connector hay forecasting?</li>
+</ol>
+<h2>12.2 Kê khai công cụ</h2>
+<p>Ứng dụng dùng React, TypeScript, TanStack Start, Playwright, Cloudflare Workers và Groq API tùy chọn. Dữ liệu danh mục là dữ liệu giả lập lấy cảm hứng từ phân loại bách hóa công khai, không phải dữ liệu nội bộ doanh nghiệp.</p>
+<p>Yêu cầu Bảng C: PDF dự án tối đa 20 trang; video thuyết trình tối đa 5 phút; video demo tối đa 5 phút; phải kê khai trung thực công cụ AI, dataset, API, thư viện, mã nguồn mở và phần tự xây dựng.</p>
+<p>Nguồn thể lệ tham khảo:</p>
+<ul>
+<li>https://ai.tainangviet.vn/bang-thi/C</li>
+<li>https://ai.tainangviet.vn/ho-so</li>
+</ul>
+<p>Truy cập ngày 15/09/2026. Tài liệu này dùng để xin góp ý chuyên gia, không thay thế mẫu hồ sơ chính thức của Ban Tổ chức.</p></body></html>

@@ -1,0 +1,337 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>WareSim AI</title><style>* {
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+body {
+  margin: 0;
+  color: #18372b;
+  font-family: Arial, "Segoe UI", sans-serif;
+  background: white;
+}
+
+h1,
+h2,
+h3 {
+  color: #153d2f;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+h2 {
+  margin: 18px 0 8px;
+  font-size: 18px;
+}
+
+h3 {
+  margin: 14px 0 6px;
+  color: #246c4c;
+  font-size: 13px;
+}
+
+p,
+li,
+td,
+th {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+p {
+  margin: 6px 0;
+}
+
+ul,
+ol {
+  margin: 6px 0 10px;
+  padding-left: 22px;
+}
+
+li {
+  margin: 3px 0;
+}
+
+a {
+  color: #247653;
+}
+
+blockquote {
+  margin: 12px 0;
+  padding: 10px 13px;
+  border-left: 4px solid #2e9667;
+  color: #315c49;
+  background: #edf8f1;
+}
+
+pre {
+  padding: 11px;
+  border-radius: 6px;
+  color: #e7f4ec;
+  background: #173b2e;
+  font: 9px/1.5 Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+table {
+  width: 100%;
+  margin: 9px 0 14px;
+  border-collapse: collapse;
+}
+
+th {
+  padding: 7px;
+  color: white;
+  background: #235f46;
+  text-align: left;
+}
+
+td {
+  padding: 7px;
+  border: 1px solid #dce5df;
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #f6faf7;
+}
+
+img {
+  display: block;
+  width: 100%;
+  max-height: 150mm;
+  margin: 10px 0 5px;
+  border: 1px solid #d8e4dc;
+  border-radius: 7px;
+  object-fit: contain;
+  object-position: top;
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+body.guide > h1:first-child {
+  margin-top: 25mm;
+  color: #174c37;
+  font-size: 36px;
+}
+
+body.guide > h2:first-of-type {
+  color: #4e6b5f;
+  font-size: 20px;
+}
+
+body.guide > p:first-of-type {
+  color: #2d855c;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+body.brief {
+  background: #eef3ef;
+}
+
+.brief .page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 17mm 16mm 14mm;
+  overflow: hidden;
+  background: white;
+  page-break-after: always;
+}
+
+.brief .page:last-child {
+  page-break-after: auto;
+}
+
+.brief .page::after {
+  position: absolute;
+  right: 16mm;
+  bottom: 8mm;
+  color: #71837a;
+  font-size: 8px;
+  content: "WareSim AI · Bảng C · Tài liệu xin góp ý";
+}
+
+.brief .cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(145deg, #12372c, #1f684c 62%, #9ac581);
+}
+
+.brief .cover::after {
+  content: "";
+}
+
+.brief .cover h1 {
+  margin: 15mm 0 4mm;
+  color: white;
+  font-size: 52px;
+}
+
+.brief .cover h2 {
+  max-width: 165mm;
+  color: #e7f5ec;
+  font-size: 26px;
+}
+
+.brief .cover p,
+.brief .cover td,
+.brief .cover th {
+  color: #e0f0e6;
+}
+
+.brief .cover table {
+  margin-top: 18mm;
+}
+
+.brief .cover th,
+.brief .cover td {
+  border-color: #ffffff44;
+  background: #ffffff12;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.brief .page > h1 {
+  margin-bottom: 7mm;
+}
+
+.brief .page img {
+  height: 112mm;
+  object-fit: cover;
+  object-position: top;
+}
+
+.brief .page:nth-of-type(4) img {
+  display: inline-block;
+  width: 48.8%;
+  height: 72mm;
+  margin-right: 1%;
+  vertical-align: top;
+}
+
+.brief .page:nth-of-type(5) img {
+  height: 47mm;
+  margin: 5px 0 3px;
+}
+
+.brief blockquote {
+  margin-top: 7mm;
+}
+
+.brief .page:last-child h2 {
+  margin-top: 11px;
+}
+
+.brief .page:last-child li {
+  margin: 2px 0;
+}
+@page { size: A4; margin: 0; }</style></head><body class="brief"><section class="page cover"><h1>WARESIM AI</h1>
+<h2>Digital Twin có kiểm chứng cho kho và cửa hàng bách hóa</h2>
+<p>BẢN TÓM TẮT GỬI CHUYÊN GIA — BẢNG C SINH VIÊN</p>
+<p>Mô phỏng FEFO/HSD, đơn hàng, cảnh báo, Hybrid RAG và hỗ trợ quyết định có Human‑in‑the‑loop trên cùng một Live State.</p>
+<table><thead><tr><th>3.000 SKU</th><th>9.025 lô</th><th>28/28 kiểm thử đạt</th></tr></thead><tbody>
+</tbody></table>
+<p>Tài liệu xin góp ý chuyên môn — 15/09/2026</p>
+</section><section class="page">
+<h1>1. Bài toán và giải pháp</h1>
+<h2>Vấn đề</h2>
+<ul>
+<li>Hết hàng trên kệ dù kho còn hàng.</li>
+<li>Khó ưu tiên lô cận hạn và giảm lãng phí.</li>
+<li>Đơn cá nhân/doanh nghiệp cạnh tranh cùng tồn.</li>
+<li>LLM dễ trả lời trôi khỏi số liệu vận hành.</li>
+<li>Khuyến nghị AI thiếu bằng chứng và trách nhiệm.</li>
+</ul>
+<h2>Cách tiếp cận</h2>
+<ul>
+<li>Canonical simulator quản lý SKU/lô và FEFO.</li>
+<li>Rule Engine phát hiện ngoại lệ xác định.</li>
+<li>RAG truy xuất state/SOP trước khi gọi Groq.</li>
+<li>What‑If chạy trên bản sao, không đổi tồn thật.</li>
+<li>RBAC, human approval và audit hash chain.</li>
+</ul>
+<blockquote>Live State → Rule/Retrieval → Groq diễn giải → Con người duyệt → Audit.</blockquote>
+<img src="assets/01-overview.png" alt="Tổng quan">
+<p>Dashboard vận hành: số liệu được tính trực tiếp từ snapshot của phiên.</p>
+</section><section class="page">
+<h1>2. Chức năng và vận hành</h1>
+<table><thead><tr><th>Chức năng</th><th>Giá trị</th></tr></thead><tbody>
+<tr><td>Kho và cửa hàng</td><td>WH‑01 và ST‑01 dùng chung state theo lô</td></tr>
+<tr><td>FEFO/HSD</td><td>Reservation, transit, backroom, cách ly</td></tr>
+<tr><td>Đơn hàng</td><td>Cá nhân, công ty/đơn vị và Auto Order</td></tr>
+<tr><td>Cảnh báo</td><td>OOS, tồn thấp, cận hạn, hết hạn</td></tr>
+<tr><td>Food Rescue</td><td>Markdown động và chuyển tặng</td></tr>
+<tr><td>What‑If</td><td>Nhu cầu tăng, giao trễ, chuỗi lạnh</td></tr>
+</tbody></table>
+<img src="assets/02-simulation-action.png" alt="Mô phỏng">
+<p>Hoạt ảnh bám theo mã tác vụ, SKU và bước nghiệp vụ đang chạy.</p>
+<blockquote>Bất biến: kho + kệ + transit + backroom + cách ly = tồn đầu + nhập − bán.</blockquote>
+</section><section class="page">
+<h1>3. Điểm mới của phiên bản hiện tại</h1>
+<h2>Hybrid Real‑Time RAG</h2>
+<p>Live State cho số hiện tại, Event History cho lịch sử, Knowledge RAG cho SOP. Groq là lớp diễn giải tùy chọn; fallback local vẫn hoạt động.</p>
+<h2>Decision intelligence</h2>
+<p>Dynamic Reorder, Food Rescue, What‑If và ba agent chuyên trách dùng cùng snapshot, không tự phát lệnh ngoài quyền.</p>
+<h2>Governance by design</h2>
+<p>RBAC ba vai trò, prompt guardrail, secret server-side, Human Override và audit hash chain.</p>
+<h2>Free-tier ready</h2>
+<p>Core chạy local không database/LLM; production bundle nhắm Cloudflare Workers và có health/API bridge.</p>
+<img src="assets/04-metrics.png" alt="Metrics">
+<img src="assets/07-groq-rag.png" alt="Hybrid RAG">
+<p>Dashboard đánh giá local và câu trả lời Groq có model, nguồn, snapshot và dữ liệu đối chiếu.</p>
+</section><section class="page">
+<h1>4. Các luồng quyết định</h1>
+<h2>Đơn hàng và Auto Order</h2>
+<p>Đơn cá nhân/doanh nghiệp giữ tồn FEFO và cập nhật trạng thái theo tác vụ POS.</p>
+<img src="assets/03-orders.png" alt="Đơn hàng">
+<h2>Food Rescue</h2>
+<p>T−24h/T−8h/T−2h đề xuất markdown/chuyển tặng; Quản lý duyệt hoặc Human Override.</p>
+<img src="assets/05-food-rescue.png" alt="Food Rescue">
+<h2>What‑If và ba agent</h2>
+<p>Inventory Guardian, Logistics Dispatcher và Store Manager Copilot phân tích trên bản sao Live State.</p>
+<img src="assets/06-what-if.png" alt="What-If">
+<blockquote>AI đề xuất và giải thích; Rule Engine xác định; canonical simulator thực thi; con người chịu trách nhiệm quyết định.</blockquote>
+</section><section class="page">
+<h1>5. Kiểm chứng, giới hạn và đề nghị góp ý</h1>
+<h2>Đã kiểm chứng</h2>
+<ul>
+<li>28/28 test: FEFO, reservation, HSD, bất biến tồn, Auto Order, RBAC, guardrail, RAG và UI desktop/mobile.</li>
+<li>TypeScript và production Cloudflare build đạt.</li>
+<li>Groq server-side đã smoke test.</li>
+<li>Golden set local có thể tái chạy.</li>
+</ul>
+<h2>Giới hạn hiện tại</h2>
+<ul>
+<li>Dữ liệu giả lập, chưa hiệu chỉnh cửa hàng thật.</li>
+<li>State theo phiên trình duyệt, chưa persistent/multi-user.</li>
+<li>Metrics local chưa thay benchmark độc lập.</li>
+<li>Audit RAM chưa phải lưu vết pháp lý.</li>
+<li>API bridge chưa có projector production.</li>
+</ul>
+<h2>Câu hỏi xin chuyên gia phản biện</h2>
+<ol>
+<li>Nên ưu tiên OOS, Food Rescue hay điều phối đơn làm use case pilot?</li>
+<li>Digital Twin cần thêm biến hoặc độ chi tiết nào?</li>
+<li>Benchmark/baseline phù hợp để đánh giá RAG và What‑If?</li>
+<li>Dữ liệu thật tối thiểu nào đủ để hiệu chỉnh?</li>
+<li>Threat model và governance còn thiếu điểm nào?</li>
+<li>Lộ trình ba tháng nên ưu tiên persistence, POS connector hay forecasting?</li>
+</ol>
+<h2>Phù hợp trọng tâm Bảng C</h2>
+<p>Giá trị thực tiễn · Dữ liệu và mô hình · Chỉ số đo lường · Bảo mật · Đạo đức AI · Khả năng triển khai.</p>
+<p>Thể lệ tham khảo: https://ai.tainangviet.vn/bang-thi/C và https://ai.tainangviet.vn/ho-so. PDF dự thi Bảng C tối đa 20 trang; video thuyết trình và demo tối đa 5 phút; phải kê khai trung thực AI, dataset, API, thư viện và phần tự xây dựng.</p></section></body></html>
